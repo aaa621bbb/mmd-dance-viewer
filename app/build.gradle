@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id 'com.android.application'
     id 'org.jetbrains.kotlin.android'
@@ -15,24 +17,47 @@ android {
         versionName "0.4.0"
     }
 
-    // 固定签名 keystore —— 保证不同构建产出的APK可覆盖安装(不卸载重装)
+    // ⚠️ 签名信息不在仓库写死(避免公开密码)。如需自定义发布签名:
+    //   在 local.properties(已被 .gitignore 忽略, 不入库)里加:
+    //   keystore.file=/绝对或相对路径/your.keystore
+    //   keystore.storePassword=xxx
+    //   keystore.keyAlias=xxx
+    //   keystore.keyPassword=xxx
+    //   不配置则 debug 用 Android 默认 debug 签名构建(人人可直接 assembleDebug)。
+    def keystoreProps = new Properties()
+    def localPropsFile = rootProject.file('local.properties')
+    if (localPropsFile.exists()) {
+        localPropsFile.withInputStream { keystoreProps.load(it) }
+    }
+    def hasKeystore = keystoreProps['keystore.storePassword'] &&
+            keystoreProps['keystore.keyAlias'] &&
+            keystoreProps['keystore.keyPassword'] &&
+            keystoreProps['keystore.file']
+
     signingConfigs {
         stable {
-            storeFile rootProject.file('keystore/release.keystore')
-            storePassword 'android'
-            keyAlias 'mmd'
-            keyPassword 'android'
+            if (hasKeystore) {
+                storeFile rootProject.file(keystoreProps['keystore.file'])
+                storePassword keystoreProps['keystore.storePassword']
+                keyAlias keystoreProps['keystore.keyAlias']
+                keyPassword keystoreProps['keystore.keyPassword']
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig signingConfigs.stable
+            // 未提供自定义签名时, 不指定 signingConfig → 用 Android 默认 debug 签名
+            if (hasKeystore) {
+                signingConfig signingConfigs.stable
+            }
         }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.stable
+            if (hasKeystore) {
+                signingConfig signingConfigs.stable
+            }
         }
     }
     compileOptions {

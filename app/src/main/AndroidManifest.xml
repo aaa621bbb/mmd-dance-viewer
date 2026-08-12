@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 访问 DeepSeek LLM API 解析用户意图(AI 管家) -->
+    <!-- 需联网加载 BGM/外部资源等 -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application
