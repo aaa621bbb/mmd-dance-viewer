@@ -1105,16 +1105,16 @@ async function main() {
       statusEl.textContent = "[场景] 已清空";
     };
 
-    // ===== 自由探索模式(第一人称·小人视角) =====
-    // 需求: ①小人视角 5cm 眼高 ②任意方向移动/飞行(z轴等) ③可站地面 ④穿墙/不穿墙切换
+    // ===== 自由探索模式(第一人称视角) =====
+    // 需求: ①第一人称视角、低眼位 ②任意方向移动/飞行(z轴等) ③可站地面 ④穿墙/不穿墙切换
     //      ⑤横竖屏都可 ⑥左手摇杆移动、右半屏拖拽转视角 ⑦进入隐藏UI、有退出按钮
-    //      ⑧保留加载的模型(三月七), 以小人视角仰望其为"巨人"
+    //      ⑧保留已加载的模型场景, 近距离环绕观察环境
     var expCamera = null;          // 探索相机(独立 UniversalCamera, v0.21.9 起不复用主 ArcRotateCamera, 根治自转)
     var expActive = false;         // 是否处于探索模式
     var expRenderObs = null;       // 单例探索 observer(循环复用, 避免重复 add/remove 失效累积)
     var expLastT = null;           // 探索 observer 的时间戳
-    var expEyeH = 0.05;            // 5cm 眼高(小人视角核心)
-    var expWalkSpeed = 0.03;       // 行走速度 m/s(5cm小人: 一步~2cm, 每秒~1.5步 = 0.03 m/s 真实步感)
+    var expEyeH = 0.05;            // 低眼位(贴近地面, 第一人称沉浸感)
+    var expWalkSpeed = 0.03;       // 行走速度 m/s(慢速, 适合近距离观察)
     var expFlySpeed = 0.09;        // 飞行速度 m/s(行走×3)
     var expSpeed = expWalkSpeed;   // 实际使用的行走速度
     var expSens = 1.0;             // 探索视角灵敏度(转动系数, 0.2~4, 默认1; 越大转越快) v0.21.10+回溯补回
@@ -1301,7 +1301,7 @@ async function main() {
       expCamera._playerPos = spawn.clone();
       expCamera.rotation.set(0, 0, 0);
       expCamera.position.copyFrom(spawn);
-      expCamera.fov = 0.9;        // 略广角, 5cm 小人看大模型更开阔
+      expCamera.fov = 0.9;        // 略广角, 第一人称观察更开阔
       expCamera.minZ = 0.01; expCamera.maxZ = 2000;
       // 主动初始化 view/world 矩阵缓存, 防止首帧黑屏/滞后(此前"新建相机黑屏"的根因就是未初始化缓存)
       try {
