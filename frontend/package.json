@@ -1,0 +1,21 @@
+{
+  "name": "mmd-web",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@babylonjs/core": "^9.20.0",
+    "@babylonjs/loaders": "^9.20.0",
+    "babylon-mmd": "^1.3.0",
+    "esbuild": "^0.28.1"
+  }
+}

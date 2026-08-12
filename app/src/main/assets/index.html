@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MMD 预览 — 文件库</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; overflow: hidden;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+    #mmd { width: 100vw; height: 100vh; display: block; touch-action: none; }
+    /* ===== 统一设计语言 ===== */
+    :root {
+      /* PocketMQO 语义色: 舞台(背景)/面板/细线 */
+      --stage: #2D2D2D; --panel: #16191f; --line: #555; --text: #fff;
+      /* 扩展设计 token */
+      --bg: #232323; --card: #1c1c22; --card-2: #26262e;
+      --line-hi: #666;
+      --txt: #e8ebf2; --txt-dim: #b8bcc8; --txt-faint: #8a8f9c;
+      --accent: #7aa2ff; --accent-2: #9db8ff; --accent-soft: rgba(122,162,255,0.14);
+      --ok: #34d399; --warn: #fbbf24; --danger: #f87171;
+      --radius: 4px; --radius-sm: 2px;
+      --shadow: 0 6px 24px rgba(0,0,0,0.5);
+      --glass: rgba(22,25,31,0.85);
+    }
+    /* ===== 顶栏状态 / 左下角提示：优雅胶囊 ===== */
+    #status { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); color: #d7dce8;
+      background: var(--glass); padding: 6px 14px; border-radius: 0; font-size: 12px; z-index: 55;
+      pointer-events: none; max-width: 84%; border: 1px solid var(--line); backdrop-filter: blur(9px);
+      box-shadow: var(--shadow); text-align: center; letter-spacing: .3px; transition: opacity .25s;
+      display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ok);
+      box-shadow: 0 0 8px var(--ok); flex: none; }
+    /* ===== 顶部工具条: 左☰ + 中间功能tabs + 右上 (PocketMQO 方形扁平) ===== */
+    .topbar { position: fixed; top: 0; left: 0; right: 0; z-index: 30; height: 48px;
+      display: flex; align-items: center; gap: 0; border-bottom: 1px solid var(--line);
+      background: var(--panel) /* #16191f */; }
+    .topbar .tbIcon { width: 48px; height: 48px; border: none; background: transparent; color: var(--text);
+      font-size: 18px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .topbar .tbIcon:active { background: var(--card-2); }
+    .topbar .tbCenter { flex: 1; display: flex; align-items: center; height: 100%; }
+    .topbar .tbCenter button { flex: 1; height: 100%; border: none; background: transparent; color: var(--text);
+      font-size: 13px; font-weight: 600; cursor: pointer; border-right: 1px solid var(--line); }
+    .topbar .tbCenter button:active { background: var(--card-2); }
+    /* 底部播放条: 播放/暂停 + 进度滑杆 + 帧号 (PocketMQO 常驻) */
+    #pbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 29; height: 52px;
+      display: flex; align-items: center; gap: 10px; padding: 0 12px; box-sizing: border-box;
+      border-top: 1px solid var(--line); background: var(--panel); }
+    #playBtn { width: 34px; height: 34px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 0;
+      background: var(--stage); color: var(--text); font-size: 16px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; }
+    #loopBtn { width: 34px; height: 34px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 0;
+      background: var(--stage); color: var(--text); font-size: 15px; display: flex; align-items: center;
+      justify-content: center; cursor: pointer; opacity: 0.5; transition: opacity .15s; }
+    #loopBtn.on { opacity: 1; color: var(--accent); border-color: var(--accent);
+      box-shadow: 0 0 8px rgba(91,140,255,0.6); }
+    #loopBtn:active { background: var(--card-2); }
+    #seek { flex: 1; min-width: 30px; accent-color: var(--accent); height: 4px; }
+    #frameTotal { min-width: 58px; flex: 0 0 auto; font-size: 12px; color: var(--text); text-align: right;
+      font-variant-numeric: tabular-nums; }
+    #exportBtn { position: fixed; bottom: 64px; right: 12px; z-index: 30; color: #fff;
+      background: linear-gradient(135deg, #2fbf71, #1fa85a); border: none; border-radius: 0;
+      padding: 10px 16px; font-size: 13px; font-weight: 700; box-shadow: 0 6px 20px rgba(47,191,113,0.35);
+      cursor: pointer; letter-spacing: 1px; }
+    #exportInfo { position: fixed; bottom: 118px; right: 12px; z-index: 30; color: var(--txt);
+      background: var(--glass); padding: 10px 14px; border-radius: 0; font-size: 12.5px;
+      max-width: 70%; display: none; white-space: pre-line; border: 1px solid var(--line);
+      backdrop-filter: blur(8px); box-shadow: var(--shadow); }
+    /* 模型位置浮动工具条: 收起=右侧窄条; 展开=浮动面板(半透明, 右侧不挡中间模型) */
+    #mposWrap { position: fixed; right: 8px; top: 50%; transform: translateY(-50%); z-index: 60;
+      display: flex; flex-direction: column; align-items: stretch; overflow: hidden;
+      background: var(--glass); border: 1px solid var(--line); color: var(--text); }
+    #mposToggle { width: 40px; height: 40px; border: none; background: transparent; color: var(--text);
+      font-size: 17px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    #mposToggle:active { background: var(--card-2); }
+    #mposBody { display: none; flex-direction: column; padding: 8px 10px 6px; min-width: 172px; }
+    #mposWrap.expanded { flex-direction: column; }
+    #mposWrap.expanded #mposBody { display: flex; }
+    #mposModelName { font-size: 11px; color: var(--txt-dim); margin-bottom: 6px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+    .mposRow { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+    .mposLbl { font-size: 11px; color: var(--accent-2); width: 12px; flex: none; font-weight: 700; }
+    .mposVal { font-size: 11px; color: var(--txt-dim); width: 34px; flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+    .mposRow input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); height: 4px; }
+    .fpReset { padding: 4px 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 11px; cursor: pointer; }
+    #progressWrap { position: fixed; left: 50%; bottom: 20%; transform: translateX(-50%); z-index: 45;
+      width: 62%; max-width: 360px; display: none; background: rgba(0,0,0,0.78); padding: 14px 16px;
+      border-radius: 10px; color: #fff; }
+    #bar { height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
+    #barFill { height: 100%; width: 0%; background: #3b82f6; border-radius: 4px; transition: width .2s; }
+    #progText { margin-top: 8px; font-size: 13px; color: #ddd; }
+    #panel { position: fixed; top: 0; left: 0; bottom: 48px; width: 82%; max-width: 340px; z-index: 40;
+      background: var(--panel); border-right: 1px solid var(--line); display: none; flex-direction: column;
+      color: var(--text); box-shadow: 2px 0 30px rgba(0,0,0,0.5); }
+    #panel.open { display: flex; }
+    #panel .phead { padding: 16px; font-size: 15px; font-weight: 700; border-bottom: 1px solid #2a2f3f;
+      display: flex; justify-content: space-between; align-items: center;
+      background: linear-gradient(135deg, rgba(59,130,246,0.15), transparent); }
+    #panel .phead .x { color: #999; cursor: pointer; padding: 0 4px; font-size: 18px; }
+    #folderBtn { margin: 12px 16px 4px; padding: 12px; background: linear-gradient(135deg, #3b82f6, #2563eb);
+      color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 3px 12px rgba(59,130,246,0.35); }
+    #folderTip { margin: 0 16px 8px; color: #999; font-size: 12px; }
+    .seg { margin: 8px 0 4px; padding: 0 16px; font-size: 13px; color: #8ab4f8; font-weight: 600; }
+    .list { flex: 1; overflow-y: auto; padding: 0 12px 16px; }
+    .itm { padding: 11px 13px; margin: 4px 0; background: #262a33; border-radius: 9px; font-size: 13px;
+      cursor: pointer; color: #ddd; word-break: break-all; border: 1px solid transparent; transition: all .12s; }
+    .itm:active { transform: scale(0.98); }
+    .itm.sel { background: #2563eb; color: #fff; box-shadow: 0 2px 10px rgba(37,99,235,0.4); border-color: #3b82f6; }
+    .itm.empty { color: #777; cursor: default; }
+    .flTabs { display: flex; padding: 8px 12px; gap: 6px; }
+    .flTab { flex: 1; padding: 9px 0; border-radius: 8px; border: 1px solid #333;
+      background: #1d2128; color: #aaa; font-size: 13px; cursor: pointer; font-weight: 600; transition: all .15s; }
+    .flTab.active { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-color: #3b82f6;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.35); }
+    #flBack { padding: 8px 16px; cursor: pointer; color: #8ab4f8; font-size: 13px; }
+    .itm .itmKind { font-size: 11px; color: #9df; margin-left: 6px; background: rgba(139,180,248,0.15);
+      padding: 1px 5px; border-radius: 4px; display: inline-block; }
+    .itm .itmArrow { float: right; color: #888; }
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 35; display: none; }
+    /* 探索模式 overlay: 全屏隐藏其他UI, 极简专用控件 */
+    #exploreUI { position: fixed; inset: 0; z-index: 90; display: none; background: transparent; }
+    #exploreUI.show { display: block; }
+    /* 右边转视角区: 占右 55%, 不遮左边摇杆 */
+    #expLookZone { position: fixed; right: 0; top: 0; bottom: 0; width: 52%; z-index: 91; }
+    /* 左手移动摇杆 */
+    #expJoystick { position: fixed; left: 34px; bottom: 60px; width: 120px; height: 120px; z-index: 92;
+      background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; }
+    #expJoystick .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px;
+      background: rgba(255,255,255,0.35); border-radius: 50%; }
+    #expJoystick .lbl { position: absolute; left: 0; right: 0; bottom: -22px; font-size: 10px; color: #8ee; text-align: center; }
+    /* 垂直飞行(升降)手指滑区: 摇杆内的上下滑动控制 vert */
+    .expTopBt { position: fixed; z-index: 93; padding: 7px 0; text-align: center; color:#fff;
+      border: none; border-radius: 10px; font-size: 12px; font-weight: 700; cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,.3); background: rgba(40,46,58,0.88); }   /* 统一中性深底, 适中大小 */
+    #expExitBt { top: 14px; left: 14px; width: 92px; background: rgba(200,60,60,0.92); }   /* 退出保留红色(危险动作) */
+    /* 右侧竖排 4 键(上飞在下飞上面): 穿墙 / 下飞 / 上飞 / 取消飞行 */
+    #expNoClipBt { bottom: 14px; right: 14px; width: 96px; }
+    #expDownBt  { bottom: 86px; right: 14px; width: 96px; }
+    #expUpBt    { bottom: 134px; right: 14px; width: 96px; }
+    #expGenFlyBt{ bottom: 182px; right: 14px; width: 96px; }
+    /* 探索速度滑杆(顶部偏右, 横竖屏都避让按钮) */
+    #expSpeedWrap { position: fixed; top: 16px; right: 16px; z-index: 94; display: flex; flex-direction: column;
+      align-items: center; background: rgba(18,20,26,0.7); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px;
+      padding: 4px 10px; }
+    #expSpeedWrap .lbl { color: #8ee; font-size: 10px; }
+    #expSpeedWrap input { width: 64px; margin: 2px 0; }
+    .ag { font-weight: 700; color: #eee; min-width: 52px; text-align: center;
+      border-bottom: 2px solid var(--ac); padding-bottom: 2px; }
+    #settingsPanel { position: fixed; top: 0; right: 0; height: 100%; width: 82%; max-width: 380px;
+      z-index: 49; background: var(--glass); border-bottom: 1px solid var(--line); border-left: 1px solid var(--line);
+      padding: 18px 16px; color: var(--txt); box-shadow: var(--shadow); backdrop-filter: blur(12px);
+      overflow-y: auto; box-sizing: border-box;
+      display: flex; flex-direction: column;
+      /* 右侧滑出动画 */
+      transform: translateX(102%); transition: transform .22s ease; }
+    #settingsPanel.show { transform: translateX(0); }
+    #settingsOverlay.show { display: block; }
+    #settingsPanel .phead { display: flex; justify-content: space-between; align-items: center;
+      font-size: 15px; font-weight: 700; margin-bottom: 8px; color: var(--txt); flex: none; }
+    #settingsPanel .phead .tl { display: flex; align-items: center; gap: 7px; }
+    #settingsPanel .x { color: var(--txt-faint); cursor: pointer; font-size: 15px; width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: background .15s; }
+    #settingsPanel .x:hover { background: var(--card-2); color: var(--txt); }
+    #settingsPanel .spSeg { font-size: 11.5px; color: var(--txt-dim); margin: 12px 0 6px; font-weight: 600;
+      letter-spacing: .5px; display: flex; align-items: center; gap: 6px; }
+    #settingsPanel .spSeg::before { content: ''; width: 3px; height: 12px; border-radius: 2px; background: var(--accent); }
+    #settingsPanel .spVal { font-size: 11px; color: var(--txt-faint); text-align: right; margin: -2px 0 4px; }
+    #settingsPanel input[type=range] { width: 100%; margin: 4px 0 8px; accent-color: var(--accent); height: 4px;
+      background: var(--card-2); border-radius: 4px; -webkit-appearance: none; appearance: none; }
+    #settingsPanel input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px;
+      border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(91,140,255,0.5); cursor: pointer; }
+    #settingsPanel .sgGroup { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-sm);
+      margin: 4px 0 4px; overflow: hidden; flex-shrink: 0; }   /* flex-shrink:0 → 分组不被压缩, 超高时面板滚动 */
+    #settingsPanel .sgHead { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px;
+      font-size: 13px; font-weight: 700; color: var(--text); background: var(--card-2); cursor: pointer;
+      user-select: none; }
+    #settingsPanel .sgHead::after { content: '▾'; font-size: 12px; color: var(--txt-faint); transition: transform .15s; }
+    #settingsPanel .sgGroup.open .sgHead::after { transform: rotate(180deg); }
+    #settingsPanel .sgBody { display: none; padding: 10px 12px 8px; }
+    #settingsPanel .sgGroup.open .sgBody { display: block; }
+    #settingsPanel .sgBt { flex: 1; padding: 8px 0; border: 1px solid #2f3542; border-radius: 8px; color: #e6e8ee; font-size: 11px; cursor: pointer; text-align: center; background: #262b36; }
+    #expOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 46; display: none;
+      pointer-events: none; }   /* 只做压暗, 不拦截触摸 —— 让画幅模式下仍能拖动/缩放 3D 画面调整取景 */
+    #expOverlay.show { display: block; }
+    /* 画幅面板: 用 display 开关 + margin 水平居中(不用 transform 定位, 避免环境兼容/动画坑导致面板不可见) */
+    #exportPanel { position: fixed; left: 0; right: 0; bottom: 0; margin: 0 auto; display: none;
+      width: 92%; max-width: 420px; z-index: 47; background: rgba(22,25,32,0.98);
+      border: 1px solid #333; border-radius: 16px 16px 0 0; padding: 16px 18px 22px; box-sizing: border-box;
+      color: #eee; box-shadow: 0 -6px 30px rgba(0,0,0,0.5); }
+    #exportPanel.show { display: block; }
+    #exportPanel .phead { display: flex; justify-content: space-between; align-items: center;
+      font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+    #exportPanel .phead .x { color: #999; cursor: pointer; font-size: 14px; border: 1px solid #444;
+      border-radius: 50%; width: 26px; height: 26px; line-height: 24px; text-align: center; }
+    #exportPanel .spSeg { font-size: 12px; color: #8ab4f8; margin: 10px 0 4px; }
+    #exportPanel select { width: 100%; box-sizing: border-box; padding: 8px; border-radius: 6px;
+      background: #1e222b; color: #eee; border: 1px solid #444; font-size: 13px; }
+    #exportPanel .vfBt { padding: 14px 0; border-radius: 10px; border: 2px solid #333;
+      background: #242a36; color: #eee; font-size: 14px; font-weight: 700;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      cursor: pointer; transition: all .15s; }
+    #exportPanel .vfBt small { font-size: 10px; color: #889; font-weight: 400; }
+    #exportPanel .vfBt.sel { border-color: #22c55e; background: #1f4d34; color: #fff; box-shadow: 0 0 12px rgba(34,197,94,0.35); }
+    #expGo { width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 12px;
+      background: linear-gradient(135deg, #22c55e, #16a34a); color: #fff; font-weight: 800; font-size: 16px;
+      letter-spacing: 2px; cursor: pointer; box-shadow: 0 4px 16px rgba(34,197,94,0.4); }
+    #expAdv { width: 100%; margin-top: 10px; padding: 9px; border: 1px solid #444; border-radius: 8px;
+      background: #1e222b; color: #aaa; font-size: 13px; cursor: pointer; }
+    #exportPanel .qBt { flex: 1; min-width: 52px; padding: 8px 0; border: 1px solid #444; border-radius: 8px;
+      background: #242a36; color: #ccc; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; }
+    #exportPanel .qBt.sel { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border-color: #3b82f6;
+      box-shadow: 0 2px 8px rgba(59,130,246,0.4); }
+    #settingsPanel .sgBt.active { outline: 2px solid #3b82f6; border-color: #3b82f6; }
+    #bloomBtn { background: #3a3f4b; }
+    /* on/off 开关(PocketMQO 风格) */
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; inset: 0; background: #3a3f4a; transition: .2s; }
+    .slider:before { content: ''; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px;
+      background: #bbb; transition: .2s; }
+    .switch input:checked + .slider { background: #2fbf71; }
+    .switch input:checked + .slider:before { transform: translateX(20px); background: #fff; }
+  </style>
+</head>
+<body>
+  <canvas id="mmd"></canvas>
+  <!-- 画幅取景框(仅选画幅时显示): 框外压暗 + 细边框, 交互层穿透 -->
+  <div id="vframe" style="position:fixed;inset:0;z-index:25;pointer-events:none;display:none">
+    <div id="vfTop" style="position:absolute;left:0;right:0;background:rgba(0,0,0,0.55)"></div>
+    <div id="vfBottom" style="position:absolute;left:0;right:0;background:rgba(0,0,0,0.55)"></div>
+    <div id="vfLeft" style="position:absolute;background:rgba(0,0,0,0.55)"></div>
+    <div id="vfRight" style="position:absolute;background:rgba(0,0,0,0.55)"></div>
+    <div id="vfBorder" style="position:absolute;border:2px solid rgba(255,255,255,0.85);box-sizing:border-box"></div>
+  </div>
+  <div id="status">初始化...</div>
+  <!-- 提示条已移除(v0.21.10+探索精简): 不再显示"拖动旋转·双指缩放" -->
+  <!-- 模型位置浮动工具条: 可展开/收起, 半透明窄条不挡模型 -->
+  <div id="mposWrap" class="collapsed">
+    <button id="mposToggle" title="模型定位(展开/收起)">✥</button>
+    <div id="mposBody">
+      <div class="mposRow" style="justify-content:space-between;align-items:center;margin-bottom:4px">
+        <button id="mposPrev" style="border:none;background:transparent;color:var(--text);font-size:14px;cursor:pointer">←</button>
+        <div id="mposModelName" style="flex:1;text-align:center;font-size:11px;color:var(--txt-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+        <button id="mposNext" style="border:none;background:transparent;color:var(--text);font-size:14px;cursor:pointer">→</button>
+      </div>
+      <div class="mposRow"><span class="mposLbl">X</span><input type="range" id="fpX" min="-30" max="30" step="0.5" value="0"><span class="mposVal" id="fpXv">0.0</span></div>
+      <div class="mposRow"><span class="mposLbl">Y</span><input type="range" id="fpY" min="-30" max="30" step="0.5" value="0"><span class="mposVal" id="fpYv">0.0</span></div>
+      <div class="mposRow"><span class="mposLbl">Z</span><input type="range" id="fpZ" min="-30" max="30" step="0.5" value="0"><span class="mposVal" id="fpZv">0.0</span></div>
+      <div class="mposRow" style="justify-content:space-between">
+        <button class="fpReset" id="fpReset">重置</button>
+        <button class="fpReset" id="fpDelM" style="color:#e66;border-color:#a33">🗑 删除</button>
+        <span id="fpTotal" style="font-size:11px;color:var(--txt-faint)"></span>
+      </div>
+    </div>
+  </div>
+  <!-- 顶部工具条: 左☰ + 中部功能 + 右上 ⛶ (PocketMQO 布局) -->
+  <div class="topbar" id="topBar">
+    <button id="menuBtn" class="tbIcon" title="菜单">☰</button>
+    <div class="tbCenter">
+      <button id="fileBtn">文件库</button>
+      <button id="settingsBtn">设置</button>
+      <button id="exploreBtn" title="小人第一人称自由探索">探索</button>
+    </div>
+    <button id="orienBtn" class="tbIcon" title="横/竖屏">🔄</button>
+  </div>
+  <!-- 底部播放条 (PocketMQO 布局): 播放/暂停 + 进度滑杆 + 帧号 -->
+  <div id="pbar">
+    <button id="playBtn" title="播放/暂停">▶</button>
+    <button id="loopBtn" title="循环播放(开/关)">🔁</button>
+    <input id="seek" type="range" min="0" max="0" value="0" step="1">
+    <span id="frameTotal">0/0</span>
+  </div>
+  <button id="exportBtn" title="导出视频">🎬 导出</button>
+  <!-- 探索模式 UI(进入时显示, 隐藏其他) -->
+  <div id="exploreUI">
+    <div id="expLookZone"></div>
+    <div id="expJoystick"><div class="knob"></div><div class="lbl">移动</div></div>
+    <button id="expExitBt" class="expTopBt">🚪 退出</button>
+    <button id="expNoClipBt" class="expTopBt">🧱 不穿墙</button>
+    <button id="expDownBt" class="expTopBt">⬇ 下飞</button>
+    <button id="expUpBt" class="expTopBt">⬆ 上飞</button>
+    <button id="expGenFlyBt" class="expTopBt">✋ 取消飞行</button>
+    <div id="expSpeedWrap">
+      <span class="lbl" id="expSpeedLbl">速度 0.3m/s</span>
+      <input type="range" id="expSpeedRange" min="0.01" max="3" step="0.01" value="0.03">
+      <span class="lbl" id="expSensLbl">视角 1.0x</span>
+      <input type="range" id="expSensRange" min="0.2" max="4" step="0.1" value="1.0">
+    </div>
+  </div>
+  <div id="exportInfo"></div>
+  <div id="progressWrap"><div id="bar"><div id="barFill"></div></div><div id="progText">导出中...</div></div>
+  <div id="expOverlay"></div>
+  <!-- 画幅工具条: 极小、右上角、半透明, 不遮中央画面(选画幅后的预览经 camera.viewport 渲染取景范围, 所见即所得) -->
+  <div id="aspectBar" style="position:fixed;top:12px;right:12px;z-index:49;
+    background:rgba(10,12,16,0.55);border:1px solid rgba(59,130,246,0.35);border-radius:16px;padding:3px 8px;
+    display:none;color:#eee;font-size:12px;align-items:center;gap:6px;backdrop-filter:blur(4px)">
+    <span style="color:#8ab4f8;font-weight:700">📐 <span id="abAspect">9:16</span></span>
+    <button id="abScene" title="改画幅" style="border:none;background:transparent;color:#8ab4f8;border-radius:10px;padding:3px 6px;font-weight:700;cursor:pointer">🔄</button>
+    <button id="abGo" title="导出视频" style="border:none;background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff;border-radius:10px;padding:3px 10px;font-weight:800;cursor:pointer">▶</button>
+  </div>
+  <div id="exportPanel">
+    <div class="phead"><span>选择画幅</span><span class="x" id="exportX">✕ 返回</span></div>
+    <div id="vfBtns" style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 6px">
+      <button class="vfBt" data-ar="9:16" style="flex:1;min-width:60px"><span>9:16</span><small>竖屏</small></button>
+      <button class="vfBt" data-ar="3:4" style="flex:1;min-width:60px"><span>3:4</span><small>偏竖</small></button>
+      <button class="vfBt" data-ar="1:1" style="flex:1;min-width:60px"><span>1:1</span><small>方形</small></button>
+      <button class="vfBt" data-ar="4:3" style="flex:1;min-width:60px"><span>4:3</span><small>偏横</small></button>
+      <button class="vfBt" data-ar="16:9" style="flex:1;min-width:60px"><span>16:9</span><small>横屏</small></button>
+    </div>
+    <button id="expGo">▶ 导出视频</button>
+    <button id="expAdv">⚙ 高级选项</button>
+    <div id="expAdvWrap" style="display:none">
+      <div class="spSeg">导出画质（快捷档）</div>
+      <div id="qBtns" style="display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 8px">
+        <button class="qBt" data-q="流畅">流畅</button>
+        <button class="qBt" data-q="均衡">均衡</button>
+        <button class="qBt" data-q="高清">高清</button>
+        <button class="qBt" data-q="超清">超清</button>
+      </div>
+      <div class="spSeg">分辨率</div>
+      <select id="expRes">
+        <option value="1280">720p (长边1280)</option>
+        <option value="1920" selected>1080p (长边1920)</option>
+        <option value="2560">1440p (长边2560)</option>
+        <option value="3840">4K (长边3840)</option>
+      </select>
+      <div class="spSeg">帧率</div>
+      <select id="expFps">
+        <option value="30" selected>30 fps</option>
+        <option value="60">60 fps</option>
+      </select>
+      <div class="spSeg">画质(码率)</div>
+      <select id="expQuality">
+        <option value="standard" selected>标准</option>
+        <option value="high">高清</option>
+      </select>
+      <div class="spSeg" style="color:#888;font-size:12px;margin-top:8px">分辨率/帧率越高耗时越长，画质=编码码率。点快捷档可一键设置。</div>
+    </div>
+  </div>
+  <div class="overlay" id="overlay"></div>
+  <div id="settingsOverlay" class="overlay"></div>
+  <div id="settingsPanel">
+    <div class="phead"><span class="tl">⚙️ 设置</span><span class="x" id="settingsX">✕</span></div>
+    <div class="sgGroup" data-open="1">
+      <div class="sgHead">🎛 操控灵敏度</div>
+      <div class="sgBody">
+        <div class="spVal" id="rotVal">旋转 400</div>
+        <input type="range" id="rotRange" min="50" max="2000" step="10" value="400">
+        <div class="spVal" id="zoomVal">缩放 2.0</div>
+        <input type="range" id="zoomRange" min="1" max="10" step="0.5" value="2">
+        <div class="spVal" id="panVal">平移 35</div>
+        <input type="range" id="panRange" min="10" max="500" step="10" value="35">
+      </div>
+    </div>
+    <div class="sgGroup">
+      <div class="sgHead">💡 场景与灯光</div>
+      <div class="sgBody">
+        <div class="spVal" id="dirVal">主光 1.0</div>
+        <input type="range" id="dirRange" min="0" max="3" step="0.1" value="1">
+        <div class="spSeg">背景色</div>
+        <div class="sgRow">
+          <button class="sgBt" data-bg="深空" style="background:#0d1117">深空</button>
+          <button class="sgBt" data-bg="纯黑" style="background:#000">纯黑</button>
+          <button class="sgBt" data-bg="舞台" style="background:#26345c">舞台</button>
+          <button class="sgBt" data-bg="暖色" style="background:#3a2b28">暖色</button>
+        </div>
+        <div class="spSeg">地面颜色</div>
+        <div class="sgRow">
+          <button class="sgBt" data-gr="深灰" style="background:#2a2d33">深灰</button>
+          <button class="sgBt" data-gr="舞台蓝" style="background:#1a3a5c">舞台蓝</button>
+          <button class="sgBt" data-gr="地板红" style="background:#5c1a1a">地板红</button>
+          <button class="sgBt" data-gr="隐藏" style="background:#444">隐藏</button>
+        </div>
+        <div class="spSeg">RAY 泛光</div>
+        <div class="sgRow" style="align-items:center">
+          <span style="font-size:12px;color:var(--txt-dim)">泛光</span>
+          <label class="switch">
+            <input type="checkbox" id="bloomChk">
+            <span class="slider"></span>
+          </label>
+          <span id="bloomState" style="font-size:12px;color:var(--txt-faint)">关</span>
+        </div>
+        <div class="spSeg">渲染增强（默认卡通，可多选叠加）</div>
+        <div class="sgRow" style="flex-direction:column;gap:7px">
+          <div class="fxRow" style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--txt-dim)"> 🎞 ACES 电影色调(根治过曝)</span>
+            <label class="switch"><input type="checkbox" id="fxAcesChk"><span class="slider"></span></label>
+          </div>
+          <div class="fxRow" style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--txt-dim)"> 💡 环境感灯光(受光层次立体)</span>
+            <label class="switch"><input type="checkbox" id="fxEnvChk"><span class="slider"></span></label>
+          </div>
+          <div class="fxRow" style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--txt-dim)"> ✨ 菲涅尔边缘光(发丝/轮廓厚涂)</span>
+            <label class="switch"><input type="checkbox" id="fxFresnelChk"><span class="slider"></span></label>
+          </div>
+          <div class="fxRow" style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--txt-dim)"> 🕳️ SSAO 接触阴影(人物接地立体)</span>
+            <label class="switch"><input type="checkbox" id="fxSsaoChk"><span class="slider"></span></label>
+          </div>
+          <div class="fxRow" style="display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:var(--txt-dim)"> 💧 柔和光泽(皮肤头发润泽)</span>
+            <label class="switch"><input type="checkbox" id="fxSpecChk"><span class="slider"></span></label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="sgGroup">
+      <div class="sgHead">🧍 模型</div>
+      <div class="sgBody">
+        <div class="spSeg">模型质感</div>
+        <div class="sgRow">
+          <button class="sgBt rmBt" data-rm="default">默认卡通</button>
+          <button class="sgBt rmBt" data-rm="gloss">类RAY光泽</button>
+        </div>
+        <div class="spSeg">布料手感（裙摆）</div>
+        <div class="sgRow">
+          <button class="sgBt fbt" data-fab="垂坠">垂坠</button>
+          <button class="sgBt fbt" data-fab="柔顺">柔顺</button>
+          <button class="sgBt fbt" data-fab="飘逸">飘逸</button>
+        </div>
+        <div class="spSeg">重力(越负越垂坠, 0=无重力)</div>
+        <div class="spVal" id="gravVal">重力 -12</div>
+        <input type="range" id="gravRange" min="-30" max="0" step="1" value="-12">
+        <div class="spSeg">布料丝滑(物理求解子步, 越大越顺滑但更费电)</div>
+        <div class="spVal" id="subVal">子步 20</div>
+        <input type="range" id="subRange" min="1" max="20" step="1" value="20">
+        <div class="spSeg">运动平滑(柔和缓冲裙摆)</div>
+        <div class="spVal" id="smVal">平滑 0</div>
+        <input type="range" id="smRange" min="0" max="0.5" step="0.05" value="0">
+        <div class="spSeg">场景天空球</div>
+        <div class="sgRow">
+          <button class="sgBt skyBt" data-sky="1">忽略(推荐)</button>
+          <button class="sgBt skyBt" data-sky="0">显示</button>
+        </div>
+        <div class="spSeg">模型正面朝向</div>
+        <div class="sgRow">
+          <button class="sgBt flipBt" id="flipFaceBt" style="flex:2">🔄 翻转正面</button>
+          <button class="sgBt" id="flipFaceState" style="flex:1">X正</button>
+        </div>
+        <div class="spSeg">当前加载（Scene Info）</div>
+        <div id="sceneInfoBox" style="font-size:12px;color:var(--txt-dim);line-height:1.6;min-height:20px">
+          模型 <span id="siModel">—</span><br>
+          动作 <span id="siMotion">—</span><br>
+          表情 <span id="siMorph">—</span><br>
+          相机 <span id="siCamera">—</span><br>
+          场景 <span id="siScene">—</span>
+        </div>
+        <div class="sgRow" style="flex-wrap:wrap">
+          <button class="sgBt" id="siDelMotion" style="flex:1">删动作</button>
+          <button class="sgBt" id="siDelMorph" style="flex:1">删表情</button>
+          <button class="sgBt" id="siDelCamera" style="flex:1">删相机</button>
+          <button class="sgBt" id="siDelScene" style="flex:1">删场景</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="panel">
+    <div class="phead"><span>文件库</span><span class="x" id="panelX">✕</span></div>
+    <button id="folderBtn">📁 选择大文件夹</button>
+    <div id="folderTip">需含 模型/动作/场景/BGM 子文件夹(按名称归类)</div>
+    <div class="flTabs">
+      <button class="flTab active" data-cat="model">模型</button>
+      <button class="flTab" data-cat="action">动作</button>
+      <button class="flTab" data-cat="scene">场景</button>
+      <button class="flTab" data-cat="bgm">BGM</button>
+    </div>
+    <div id="flBack" style="display:none">← 返回</div>
+    <div class="list" id="flBody"></div>
+    <div class="seg" id="bgmStatus" style="display:none"></div>
+  </div>
+
+  <script>
+    (function () {
+      var c = document.getElementById('mmd');
+      function fit() {
+        // ⚠️ 导出期间不触发: 否则会按 innerWidth×dpr 覆盖 canvas 物理尺寸, 破坏导出用 engine.setSize 的 drawingBuffer,
+        // 相机 aspect 错乱 → 导出画面中途变瘦(与 resize 监听同理)。
+        try { if (window.__mmd && window.__mmd.engine && window.__mmd.engine._mmdExporting) return; } catch (e) {}
+        var dpr = window.devicePixelRatio || 1;
+        c.width = Math.floor(window.innerWidth * dpr);
+        c.height = Math.floor(window.innerHeight * dpr);
+      }
+      fit();
+      window.addEventListener('resize', fit);
+      window.__mmdDpr = window.devicePixelRatio || 1;
+    })();
+  </script>
+
+  <script type="module" src="./dist/main.js"></script>
+  <script src="./export.js"></script>
+
+  <script>
+    // ======= 文件库 UI + 加载切换 (层级式: 模型/动作/场景/BGM 分类, 动作展开舞蹈文件夹) =======
+    var panel = document.getElementById('panel');
+    var overlay = document.getElementById('overlay');
+    var bgmStatus = document.getElementById('bgmStatus');
+    var folderBtn = document.getElementById('folderBtn');
+    var folderTip = document.getElementById('folderTip');
+    var flBody = document.getElementById('flBody');
+    var flBack = document.getElementById('flBack');
+
+    var flCat = 'model';      // 当前分类 tab: model/action/scene/bgm
+    var flGroup = null;       // 当前展开的动作组名(null=显示组列表)
+    var flModelGroup = null;  // 当前展开的模型组名(null=显示组列表)
+    var actionGroups = [];    // 缓存的动作分组 [{name, items:[{name,kind,url}]}]
+    var modelGroups = [];     // 缓存的模型分组 [{name, items:[{name,url}]}]
+    var models = [], scenes = [], audios = [];
+    var curModel = null, curModelName = null;
+    var curAudio = null;
+    var curScene = null;   // 当前已加载的场景 URL(高亮)
+    var bgmEl = null;
+
+    function openPanel() { panel.classList.add('open'); overlay.style.display = 'block'; refreshLists(); }
+    function closePanel() { panel.classList.remove('open'); overlay.style.display = 'none'; }
+    document.getElementById('fileBtn').addEventListener('click', openPanel);
+    document.getElementById('panelX').addEventListener('click', closePanel);
+    overlay.addEventListener('click', closePanel);
+    document.querySelectorAll('.flTab').forEach(function (bt) {
+      bt.addEventListener('click', function () {
+        flCat = bt.getAttribute('data-cat'); flGroup = null; flModelGroup = null;
+        document.querySelectorAll('.flTab').forEach(function (b) { b.classList.remove('active'); });
+        bt.classList.add('active');
+        renderPanel();
+      });
+    });
+    flBack.addEventListener('click', function () { flGroup = null; flModelGroup = null; renderPanel(); });
+
+    // native 选完文件夹后回调: 自动刷新列表
+    window.__afterFolder = function (count) {
+      try { if (window.AndroidFile) AndroidFile.log('__afterFolder count=' + count); } catch (e) {}
+      folderTip.textContent = count > 0 ? ('已找到 ' + count + ' 个文件') : '该文件夹里没有识别到可用的模型/动作/音乐文件';
+      refreshLists();
+    };
+    // 安全兜底: 万一原生回调被吞, 选完文件夹后轮询扫描完成再刷新一次
+    var flPollTimer = null;
+    function flWaitScan() {
+      if (flPollTimer) clearInterval(flPollTimer);
+      flPollTimer = setInterval(function () {
+        try {
+          if (window.AndroidFile && window.AndroidFile.isScanningJs()) { folderTip.textContent = '正在扫描文件夹...'; return; }
+          clearInterval(flPollTimer); flPollTimer = null;
+          refreshLists();
+        } catch (e) { clearInterval(flPollTimer); flPollTimer = null; }
+      }, 350);
+      setTimeout(function () { if (flPollTimer) { clearInterval(flPollTimer); flPollTimer = null; } }, 15000);
+    }
+    folderBtn.addEventListener('click', function () {
+      if (window.AndroidFile) { folderTip.textContent = '请在弹出的系统窗口里选择文件夹...'; AndroidFile.chooseFolderJs(); flWaitScan(); }
+    });
+
+    function jsonToArr(jsonStr) {
+      try { var a = JSON.parse(jsonStr); return a; } catch (e) { return []; }
+    }
+    function mkItm(text, cls) {
+      var d = document.createElement('div'); d.className = 'itm ' + (cls || ''); d.textContent = text; return d;
+    }
+
+    function refreshLists() {
+      if (!window.AndroidFile) { folderTip.textContent = 'no AndroidFile bridge'; return; }
+      models = []; modelGroups = []; scenes = []; audios = [];
+      try { models = jsonToArr(AndroidFile.listModelsJson()); } catch (e) {}
+      try { modelGroups = jsonToArr(AndroidFile.listModelGroupsJson() || '[]'); } catch (e) {}
+      try { actionGroups = jsonToArr(AndroidFile.listActionGroupsJson() || '[]'); } catch (e) {}
+      try { scenes = jsonToArr(AndroidFile.listScenesJson()); } catch (e) {}
+      try { audios = jsonToArr(AndroidFile.listAudiosJson()); } catch (e) {}
+      var hasFolder = false; try { hasFolder = AndroidFile.hasFolderJs(); } catch (e) {}
+      var mCnt = 0; modelGroups.forEach(function (g) { mCnt += (g.items || []).length; });
+      folderTip.textContent = (hasFolder ? '已选' : '未选文件夹') + ' · 模型' + mCnt + ' 舞蹈' + actionGroups.length + ' 场景' + scenes.length + ' 音乐' + audios.length;
+      renderPanel();
+    }
+
+    function renderPanel() {
+      flBody.innerHTML = '';
+      flBack.style.display = ((flCat === 'action' && flGroup != null) || (flCat === 'model' && flModelGroup != null)) ? 'block' : 'none';
+      if (flCat === 'model') {
+        if (flModelGroup != null) { renderModelItems(flModelGroup); return; }
+        if (!modelGroups.length) { flBody.appendChild(mkItm('没有模型文件夹', 'empty')); return; }
+        modelGroups.forEach(function (g) {
+          var d = mkItm('📁 ' + g.name, '');
+          d.innerHTML = '📁 ' + g.name + '<span class="itmArrow">›</span>';
+          d.addEventListener('click', function () { flModelGroup = g.name; renderPanel(); });
+          flBody.appendChild(d);
+        });
+      } else if (flCat === 'action') {
+        if (flGroup != null) { renderActionItems(flGroup); return; }   // 显示某一舞蹈组的三件套
+        if (!actionGroups.length) { flBody.appendChild(mkItm('没有舞蹈文件夹', 'empty')); return; }
+        actionGroups.forEach(function (g) {
+          var d = mkItm('📁 ' + g.name, '');
+          d.innerHTML = '📁 ' + g.name + '<span class="itmArrow">›</span>';
+          d.addEventListener('click', function () { flGroup = g.name; renderPanel(); });
+          flBody.appendChild(d);
+        });
+      } else if (flCat === 'scene') {
+        if (!scenes.length) { flBody.appendChild(mkItm('没有场景(支持 .glb/.gltf/.obj/.stl/.babylon)', 'empty')); return; }
+        scenes.forEach(function (it) {
+          var d = mkItm(it.name, curScene === it.url ? 'sel' : '');
+          d.addEventListener('click', function () {
+            curScene = it.url;
+            status.textContent = '加载场景: ' + it.name;
+            if (window.__mmd && window.__mmd.loadScene) { window.__mmd.loadScene(it.url); }
+            else { status.textContent = '引擎未就绪'; }
+            document.querySelectorAll('#flBody .itm').forEach(function (x) { x.classList.remove('sel'); });
+            d.classList.add('sel');
+          });
+          flBody.appendChild(d);
+        });
+      } else { // bgm
+        if (!audios.length) { flBody.appendChild(mkItm('没有音乐', 'empty')); return; }
+        audios.forEach(function (it) {
+          var d = mkItm(it.name, curAudio === it.name ? 'sel' : '');
+          d.addEventListener('click', function () { curAudio = it.name; playBgm(it); });
+          flBody.appendChild(d);
+        });
+      }
+    }
+
+    // 渲染模型组(itemName -> Item): 仅单个模型时直接加载; 多个时逐项列出
+    function renderModelItems(groupName) {
+      var g = null;
+      for (var i = 0; i < modelGroups.length; i++) if (modelGroups[i].name === groupName) { g = modelGroups[i]; break; }
+      if (!g || !g.items || !g.items.length) { flBody.appendChild(mkItm('该文件夹无模型', 'empty')); return; }
+      g.items.forEach(function (it) {
+        var d = mkItm(it.name, curModelName === it.name ? 'sel' : '');
+        d.addEventListener('click', function () {
+          curModel = it.url; curModelName = it.name;
+          status.textContent = '加载模型 ' + it.name;
+          if (window.__mmdLoad && window.__mmdLoad.loadModel) window.__mmdLoad.loadModel(it.url);
+          refreshLists();
+        });
+        flBody.appendChild(d);
+      });
+    }
+
+    // 渲染某舞蹈组内的 动作/表情/相机 子项
+    function renderActionItems(groupName) {
+      var g = null;
+      for (var i = 0; i < actionGroups.length; i++) if (actionGroups[i].name === groupName) { g = actionGroups[i]; break; }
+      if (!g || !g.items || !g.items.length) { flBody.appendChild(mkItm('该文件夹无动作文件', 'empty')); return; }
+      var kindLabel = { bone: '动作', morph: '表情', camera: '相机' };
+      g.items.forEach(function (it) {
+        var k = kindLabel[it.kind] || '文件';
+        var d = mkItm(it.name, '');
+        d.innerHTML = it.name + '<span class="itmKind">' + k + '</span>';
+        d.addEventListener('click', function () {
+          status.textContent = '加载' + k + ' ' + it.name;
+          if (it.kind === 'camera') window.__mmdLoad.setCamera(it.url);
+          else if (it.kind === 'morph') window.__mmdLoad.setMorph(it.url);
+          else window.__mmdLoad.setBone(it.url);
+        });
+        flBody.appendChild(d);
+      });
+    }
+
+    // BGM: mmdext:// 的音频流给 <audio> 播放(前端最轻, WebView 代理到 SAF 流)
+    function playBgm(it) {
+      if (!it) { stopBgm(); return; }
+      bgmStatus.style.display = 'block';
+      bgmStatus.textContent = '🎵 ' + it.name + ' (播放中)';
+      stopBgmAudio();
+      var audio = new Audio(it.url);
+      audio.loop = true;
+      audio.play().catch(function (e) { bgmStatus.textContent = '🎵 播放失败: ' + (e && e.message || 'unknown'); });
+      bgmEl = audio;
+    }
+    function stopBgmAudio() { if (bgmEl) { try { bgmEl.pause(); } catch (e) {} bgmEl = null; } }
+    function stopBgm() { stopBgmAudio(); bgmStatus.style.display = 'none'; curAudio = null; document.querySelectorAll('#flBody .itm').forEach(function (x) { x.classList.remove('sel'); }); }
+
+    // ======= 触控设置面板 =======
+    var settingsPanel = document.getElementById('settingsPanel');
+    var rotRange = document.getElementById('rotRange');
+    var zoomRange = document.getElementById('zoomRange');
+    var panRange = document.getElementById('panRange');
+    var rotVal = document.getElementById('rotVal');
+    var zoomVal = document.getElementById('zoomVal');
+    var panVal = document.getElementById('panVal');
+
+    var settingsOverlay = document.getElementById('settingsOverlay');
+    function openSettings() { settingsPanel.classList.add('show'); settingsOverlay.classList.add('show'); }
+    function closeSettings() { settingsPanel.classList.remove('show'); settingsOverlay.classList.remove('show'); }
+    document.getElementById('settingsBtn').addEventListener('click', function (e) { e.stopPropagation(); openSettings(); });
+    document.getElementById('settingsX').addEventListener('click', closeSettings);
+    // 点击任意非面板区域 → 自动关闭设置, 返回预览界面(不用点✕)
+    settingsOverlay.addEventListener('click', closeSettings);
+    // 设置面板二级收纳: 点 sgHead 展开/收起该分组
+    (function () {
+      var groups = document.querySelectorAll('#settingsPanel .sgGroup');
+      groups.forEach(function (g) {
+        var head = g.querySelector('.sgHead');
+        if (!head) return;
+        if (g.getAttribute('data-open') === '1') g.classList.add('open');
+        head.addEventListener('click', function (e) {
+          e.stopPropagation();
+          g.classList.toggle('open');
+        });
+      });
+    })();
+
+    // 灵敏度持久化: 记住上次设置, 下次打开不重置(v0.19.2)
+    var SENS_KEY = 'mmd_sens';
+    function loadSens() {
+      try {
+        var s = JSON.parse(localStorage.getItem(SENS_KEY) || 'null');
+        if (!s || typeof s !== 'object') return;
+        if (typeof s.rotate === 'number') rotRange.value = s.rotate;
+        if (typeof s.zoom === 'number') zoomRange.value = s.zoom;
+        if (typeof s.pan === 'number') panRange.value = s.pan;
+      } catch (e) {}
+    }
+    function saveSens(v) {
+      try { localStorage.setItem(SENS_KEY, JSON.stringify(v)); } catch (e) {}
+    }
+
+    function applySettings() {
+      var v = { rotate: +rotRange.value, zoom: +zoomRange.value, pan: +panRange.value };
+      rotVal.textContent = rotRange.value;
+      zoomVal.textContent = (+zoomRange.value).toFixed(1);
+      panVal.textContent = panRange.value;
+      saveSens(v);
+      if (window.__mmd && window.__mmd.setSensitivity) {
+        window.__mmd.setSensitivity(v);
+      }
+    }
+    rotRange.addEventListener('input', applySettings);
+    zoomRange.addEventListener('input', applySettings);
+    panRange.addEventListener('input', applySettings);
+
+    // 灵敏度恢复: 数字从 localStorage 恢复(logical), 但真正"应用到相机"必须等 main.js(module, defer)跑完,
+    // 否则 __mmd.setSensitivity 还不存在时调用会静默跳过 → 手感想回不到上次值。
+    // 改用轮询: 等 setSensitivity 就绪后应用一次, 保证重进 App 相机真的用上上次灵敏度。
+    loadSens();
+    var sv = { rotate: +rotRange.value, zoom: +zoomRange.value, pan: +panRange.value };
+    rotVal.textContent = rotRange.value; zoomVal.textContent = (+zoomRange.value).toFixed(1); panVal.textContent = panRange.value;
+    var sensTries = 0, sensTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.setSensitivity) {
+        applySettings();            // 应用已恢复的滑块值到相机(真正生效)
+        clearInterval(sensTimer);
+      } else if (++sensTries > 40) { // 4秒给足时间; 超时放弃, 相机保持默认但滑块数字仍是用户保存值
+        clearInterval(sensTimer);
+      }
+    }, 100);
+
+    // ======= 场景控制(BGM/RAY/背景) =======
+    var dirRange = document.getElementById('dirRange');
+    var dirVal = document.getElementById('dirVal');
+    var bloomChk = document.getElementById('bloomChk');
+    var bloomState = document.getElementById('bloomState');
+    var bloomOn = false;
+    function bloomApply() {
+      bloomOn = bloomChk.checked;
+      if (bloomState) bloomState.textContent = bloomOn ? '开' : '关';
+      if (bloomState) bloomState.style.color = bloomOn ? 'var(--ok)' : 'var(--txt-faint)';
+      if (window.__mmd && window.__mmd.setScene) window.__mmd.setScene({ bloom: bloomOn ? 0.8 : 0 });
+    }
+    if (bloomChk) bloomChk.addEventListener('change', bloomApply);
+
+    // 背景色预设
+    var BG_PRESETS = {
+      '深空': [0.05, 0.07, 0.09],
+      '纯黑': [0, 0, 0],
+      '舞台': [0.15, 0.2, 0.36],
+      '暖色': [0.23, 0.16, 0.15]
+    };
+    // 地面颜色预设
+    var GR_PRESETS = {
+      '深灰': [0.16, 0.18, 0.2, 1],
+      '舞台蓝': [0.1, 0.23, 0.36, 1],
+      '地板红': [0.36, 0.1, 0.1, 1],
+      '隐藏': [0, 0, 0, 0]
+    };
+
+    function applyDir() {
+      dirVal.textContent = (+dirRange.value).toFixed(1);
+      if (window.__mmd && window.__mmd.setScene) window.__mmd.setScene({ dir: +dirRange.value });
+    }
+    dirRange.addEventListener('input', applyDir);
+
+    // 背景/地面预设按钮
+    document.querySelectorAll('.sgBt[data-bg]').forEach(function (bt) {
+      bt.addEventListener('click', function () {
+        var key = bt.getAttribute('data-bg');
+        document.querySelectorAll('.sgBt[data-bg]').forEach(function (b) { b.classList.remove('active'); });
+        bt.classList.add('active');
+        if (window.__mmd && window.__mmd.setScene) window.__mmd.setScene({ bg: BG_PRESETS[key] });
+      });
+    });
+    document.querySelectorAll('.sgBt[data-gr]').forEach(function (bt) {
+      bt.addEventListener('click', function () {
+        var key = bt.getAttribute('data-gr');
+        document.querySelectorAll('.sgBt[data-gr]').forEach(function (b) { b.classList.remove('active'); });
+        bt.classList.add('active');
+        if (window.__mmd && window.__mmd.setScene) window.__mmd.setScene({ ground: GR_PRESETS[key] });
+      });
+    });
+
+    // 布料手感(裙摆): 垂坠/柔顺/飘逸 → __mmd.setFabric
+    var curFab = '柔顺';
+    function applyFab(mode) {
+      curFab = mode;
+      document.querySelectorAll('.fbt').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-fab') === mode); });
+      if (window.__mmd && window.__mmd.setFabric) { window.__mmd.setFabric(mode); }
+    }
+    document.querySelectorAll('.fbt').forEach(function (bt) {
+      bt.addEventListener('click', function () { applyFab(bt.getAttribute('data-fab')); });
+    });
+    // 启动时高亮当前档(默认柔顺), 若 __mmd 未就绪则由轮询补上
+    applyFab('柔顺');
+    var fabTries = 0, fabTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.setFabric) { applyFab(curFab); clearInterval(fabTimer); }
+      else if (++fabTries > 20) { clearInterval(fabTimer); }
+    }, 300);
+
+    // 物理精细调优: 重力 / 布料子步 / 运动平滑(连续滑杆)
+    var gravRange = document.getElementById('gravRange'), gravVal = document.getElementById('gravVal');
+    var subRange = document.getElementById('subRange'), subVal = document.getElementById('subVal');
+    var smRange = document.getElementById('smRange'), smVal = document.getElementById('smVal');
+    if (gravRange) gravRange.addEventListener('input', function () {
+      var v = +gravRange.value; gravVal.textContent = '重力 ' + v;
+      if (window.__mmd && window.__mmd.setPhysics) window.__mmd.setPhysics({ gravity: v });
+    });
+    if (subRange) subRange.addEventListener('input', function () {
+      var v = +subRange.value; subVal.textContent = '子步 ' + v;
+      if (window.__mmd && window.__mmd.setPhysics) window.__mmd.setPhysics({ substeps: v });
+    });
+    if (smRange) smRange.addEventListener('input', function () {
+      var v = +smRange.value; smVal.textContent = '平滑 ' + v.toFixed(2);
+      if (window.__mmd && window.__mmd.setPhysics) window.__mmd.setPhysics({ smooth: v });
+    });
+    // ===== 渲染增强 5 项独立开关(默认全关=原始卡通) =====
+    // ACES/环境感灯光/菲涅尔/SSAO/柔和光泽, 每个可勾选叠加 → applyRenderFx
+    var fxChk = {
+      aces: document.getElementById('fxAcesChk'),
+      envlight: document.getElementById('fxEnvChk'),
+      fresnel: document.getElementById('fxFresnelChk'),
+      ssao: document.getElementById('fxSsaoChk'),
+      specular: document.getElementById('fxSpecChk')
+    };
+    function fxApplyAll() {
+      var state = {};
+      for (var k in fxChk) { if (fxChk[k]) state[k] = fxChk[k].checked; }
+      if (window.__mmd && window.__mmd.applyRenderFx) window.__mmd.applyRenderFx(state);
+    }
+    for (var fxk in fxChk) { if (fxChk[fxk]) { (function (el){ el.addEventListener('change', fxApplyAll); })(fxChk[fxk]); } }
+    // 启动时同步为当前渲染状态(默认全关; 若已有状态则勾选)
+    setTimeout(function () {
+      try {
+        if (window.__mmd && window.__mmd.getRenderFx) {
+          var cur = window.__mmd.getRenderFx();
+          for (var k in fxChk) { if (fxChk[k] && cur[k]) fxChk[k].checked = true; }
+        }
+      } catch (e) {}
+    }, 600);
+
+    // 渲染模式(模型质感): 默认卡通 / 类RAY光泽 → __mmd.setRenderMode(mode)
+    // 类RAY光泽 = 程序化环境反射 + sphere高光 + 材质光泽(皮肤/头发/衣服更油润立体);
+    // 默认卡通 = 原版 MMD 平涂. 设置面板一键切换, 导出/预览即时生效.
+    var curRm = 'default';
+    localStorage.removeItem('mmd_rm');   // 新功能默认从 default 开始(避免各模型观感不一)
+    function applyRm(mode) {
+      curRm = mode;
+      document.querySelectorAll('.rmBt').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-rm') === mode); });
+      if (window.__mmd && window.__mmd.setRenderMode) {
+        try { window.__mmd.setRenderMode(mode); } catch (e) {}
+      }
+    }
+    document.querySelectorAll('.rmBt').forEach(function (bt) {
+      bt.addEventListener('click', function () { applyRm(bt.getAttribute('data-rm')); });
+    });
+    applyRm('default');
+    var rmTries = 0, rmTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.setRenderMode) { applyRm(curRm); clearInterval(rmTimer); }
+      else if (++rmTries > 25) { clearInterval(rmTimer); }
+    }, 300);
+
+    // ======= 场景天空球忽略开关(①) =======
+    var sktries = 0, skTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.setSkySphereIgnore) {
+        applySky(window.__mmd.getSkySphereIgnore ? window.__mmd.getSkySphereIgnore() : true);
+        clearInterval(skTimer);
+      } else if (++sktries > 25) { clearInterval(skTimer); }
+    }, 300);
+    function applySky(on) {
+      on = !!on;
+      document.querySelectorAll('.skyBt').forEach(function (b) { b.classList.toggle('active', (b.getAttribute('data-sky') === '1') === on); });
+      if (window.__mmd && window.__mmd.setSkySphereIgnore) { try { window.__mmd.setSkySphereIgnore(on); } catch (e) {} }
+    }
+    document.querySelectorAll('.skyBt').forEach(function (bt) {
+      bt.addEventListener('click', function () { applySky(bt.getAttribute('data-sky') === '1'); });
+    });
+
+    // ======= 模型正面朝向: 翻转180°(②) =======
+    var flipBt = document.getElementById('flipFaceBt');
+    var flipState = document.getElementById('flipFaceState');
+    function refreshFaceState() {
+      try { if (window.__mmd && window.__mmd.getModelFaceFlipped) { flipState.textContent = window.__mmd.getModelFaceFlipped() ? 'X负' : 'X正'; } } catch (e) {}
+    }
+    flipBt.addEventListener('click', function () {
+      if (window.__mmd && window.__mmd.flipModelFace) {
+        try { var r = window.__mmd.flipModelFace(); } catch (e) {}
+        refreshFaceState();
+        var st = document.getElementById('status'); if (st) st.textContent = '[模型正面] 已翻转';
+      }
+    });
+    var flipTries = 0, flipTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.getModelFaceFlipped) { refreshFaceState(); clearInterval(flipTimer); }
+      else if (++flipTries > 25) { clearInterval(flipTimer); }
+    }, 300);
+
+    // ======= 模型位置浮动工具条: 展开/收起 + X/Y/Z 滑杆 + 显示当前模型 =======
+    var mposWrap = document.getElementById('mposWrap');
+    var mposToggle = document.getElementById('mposToggle');
+    var fpX = document.getElementById('fpX'), fpY = document.getElementById('fpY'), fpZ = document.getElementById('fpZ');
+    var fpXv = document.getElementById('fpXv'), fpYv = document.getElementById('fpYv'), fpZv = document.getElementById('fpZv');
+    var fpReset = document.getElementById('fpReset');
+    var fpModelName = document.getElementById('mposModelName');
+    var fpTotal = document.getElementById('fpTotal');
+    function mposSync() {
+      try {
+        // 模型名 + 序号/总数
+        var names = []; try { names = window.__mmdLoad.listModels ? window.__mmdLoad.listModels() : []; } catch(e){}
+        var ai = window.__mmdLoad.getActiveModelIndex ? window.__mmdLoad.getActiveModelIndex() : -1;
+        var name = '—'; if (ai>=0 && ai<names.length) name = names[ai];
+        fpModelName.textContent = name;
+        fpTotal.textContent = names.length > 0 ? ((ai+1)+'/'+names.length) : '';
+        // 滑杆设为 active 模型位置
+        var p = window.__mmd.getModelPosition && window.__mmd.getModelPosition();
+        if (p && typeof p.x === 'number') { fpX.value = p.x; fpY.value = p.y || 0; fpZ.value = p.z; }
+      } catch (e) {}
+      fpXv.textContent = (+fpX.value).toFixed(1); fpYv.textContent = (+fpY.value).toFixed(1); fpZv.textContent = (+fpZ.value).toFixed(1);
+    }
+    function mposApply() {
+      var x = parseFloat(fpX.value) || 0, y = parseFloat(fpY.value) || 0, z = parseFloat(fpZ.value) || 0;
+      if (window.__mmd && window.__mmd.setModelPosition) { try { window.__mmd.setModelPosition(x, y, z); } catch (e) {} }
+      fpXv.textContent = x.toFixed(1); fpYv.textContent = y.toFixed(1); fpZv.textContent = z.toFixed(1);
+    }
+    mposToggle.addEventListener('click', function () {
+      var expanded = mposWrap.classList.toggle('expanded');
+      mposToggle.textContent = expanded ? '✕' : '✥';
+      if (expanded) mposSync();
+    });
+    // 模型切换: ← 上一个 / → 下一个(所有 float 条 skid 同步到切到的模型位置)
+    function mposCycle(dir) {
+      if (!window.__mmdLoad || !window.__mmdLoad.getModelCount) return;
+      var n = window.__mmdLoad.getModelCount();
+      if (n <= 0) return;
+      var idx = window.__mmdLoad.getActiveModelIndex();
+      var ni = (idx + dir + n) % n;
+      if (window.__mmdLoad.setActiveModel) window.__mmdLoad.setActiveModel(ni);
+      mposSync();
+    }
+    document.getElementById('mposPrev').addEventListener('click', function () { mposCycle(-1); });
+    document.getElementById('mposNext').addEventListener('click', function () { mposCycle(1); });
+    fpX.addEventListener('input', mposApply); fpY.addEventListener('input', mposApply); fpZ.addEventListener('input', mposApply);
+    fpReset.addEventListener('click', function () {
+      fpX.value = 0; fpY.value = 0; fpZ.value = 0;
+      if (window.__mmd && window.__mmd.setModelPosition) { try { window.__mmd.setModelPosition(0, 0, 0); } catch (e) {} }
+      mposSync(); var st = document.getElementById('status'); if (st) st.textContent = '[模型] 位置已重置';
+    });
+    // 删除当前模型(卸载 from 场景 + 移出列表)
+    document.getElementById('fpDelM').addEventListener('click', function () {
+      if (!window.__mmdLoad || !window.__mmdLoad.removeActiveModel) return;
+      if (window.__mmdLoad.getModelCount && window.__mmdLoad.getModelCount() <= 0) return;
+      var st = document.getElementById('status');
+      try {
+        var r = window.__mmdLoad.removeActiveModel();
+        if (r && r.ok) {
+          if (st) st.textContent = '[模型] 已删除' + (r.name ? ' ' + r.name : '');
+          mposSync();
+        } else if (r && r.error) { if (st) st.textContent = '[模型] 删除失败: ' + r.error; }
+      } catch (e) { if (st) st.textContent = '[模型] 删除异常'; }
+    });
+    // 引擎就绪后同步滑杆为当前模型位置
+    var mposTries = 0, mposTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.getModelPosition) { mposSync(); clearInterval(mposTimer); }
+      else if (++mposTries > 40) clearInterval(mposTimer);
+    }, 200);
+    // 每次 model 加载后刷新浮动条显示(与 sceneInfo 联动)。
+    // ⚠️ 必须在 window.__mmdLoad 就绪后才写, 否则 module(main.js)晚于内联脚本, 此处抛错会中断后续绑定。
+    var mposRefreshTries = 0, mposRefreshTimer = setInterval(function () {
+      if (window.__mmdLoad) { try { window.__mmdLoad._mposRefresh = mposSync; } catch (e) {} clearInterval(mposRefreshTimer); }
+      else if (++mposRefreshTries > 40) clearInterval(mposRefreshTimer);
+    }, 100);
+
+    // ======= 底部播放条: 播放/暂停 + 进度滑杆 + 帧号 =======
+    var playBtn = document.getElementById('playBtn');
+    var loopBtn = document.getElementById('loopBtn');
+    var seekEl = document.getElementById('seek');
+    var frameTotal = document.getElementById('frameTotal');
+    var scrubbing = false;   // 用户正在拖动 seek, 期间不同步
+    function updatePlaybackUI() {
+      try {
+        if (!window.__mmd || !window.__mmd.getPlayback) return;
+        var pb = window.__mmd.getPlayback();
+        var total = Math.round(pb.total) || 0;
+        var frame = Math.round(pb.frame) || 0;
+        if (seekEl.max != total) seekEl.max = total;
+        if (!scrubbing) seekEl.value = frame;
+        frameTotal.textContent = frame + '/' + total;
+        playBtn.textContent = pb.paused ? '▶' : '❚❚';
+        loopBtn.classList.toggle('on', !!pb.loop);
+      } catch (e) {}
+    }
+    playBtn.addEventListener('click', function () {
+      if (window.__mmd && window.__mmd.togglePlay) { try { window.__mmd.togglePlay(); } catch (e) {} }
+      updatePlaybackUI();
+    });
+    loopBtn.addEventListener('click', function () {
+      if (window.__mmd && window.__mmd.setLoop) {
+        try { window.__mmd.setLoop(!loopBtn.classList.contains('on')); } catch (e) {}
+      }
+      updatePlaybackUI();
+    });
+    seekEl.addEventListener('touchstart', function () { scrubbing = true; }, { passive: true });
+    seekEl.addEventListener('mousedown', function () { scrubbing = true; });
+    function applySeek(v) {
+      if (window.__mmd && window.__mmd.seekTo) { try { window.__mmd.seekTo(v); } catch (e) {} }
+    }
+    seekEl.addEventListener('input', function () { scrubbing = true; frameTotal.textContent = seekEl.value + '/' + (seekEl.max||0); });
+    seekEl.addEventListener('change', function () { applySeek(seekEl.value); setTimeout(function(){ scrubbing = false; }, 60); });
+    seekEl.addEventListener('touchend', function () { applySeek(seekEl.value); setTimeout(function(){ scrubbing = false; }, 60); });
+    setInterval(updatePlaybackUI, 200);
+    // 探索模式也隐藏底部播放条(pbar 已加入 expHideEls, 见下)
+
+    // ======= Scene Information: 显示当前加载 + 删除(PocketMQO 风格) =======
+    function sceneInfoRefresh() {
+      try {
+        var si = window.__mmdLoad && window.__mmdLoad.sceneInfo ? window.__mmdLoad.sceneInfo() : null;
+        if (!si) return;
+        document.getElementById('siModel').textContent = si.model || '—';
+        document.getElementById('siMotion').textContent = si.motion || '—';
+        document.getElementById('siMorph').textContent = si.morph || '—';
+        document.getElementById('siCamera').textContent = si.camera || '—';
+        document.getElementById('siScene').textContent = si.scene || '—';
+        // 浮动工具条也跟随显示当前模型名 + 序号
+        if (typeof mposSync == 'function') { try { mposSync(); } catch (e) {} }
+      } catch (e) {}
+    }
+    function sceneInfoRefreshLoop() {
+      sceneInfoRefresh();
+      setTimeout(function () {
+        if (!document.hidden) sceneInfoRefreshLoop();
+      }, 800);
+    }
+    document.getElementById('siDelMotion').addEventListener('click', function () { if (window.__mmdLoad && window.__mmdLoad.clearTrack) window.__mmdLoad.clearTrack('motion'); sceneInfoRefresh(); });
+    document.getElementById('siDelMorph').addEventListener('click', function () { if (window.__mmdLoad && window.__mmdLoad.clearTrack) window.__mmdLoad.clearTrack('morph'); sceneInfoRefresh(); });
+    document.getElementById('siDelCamera').addEventListener('click', function () { if (window.__mmdLoad && window.__mmdLoad.clearTrack) window.__mmdLoad.clearTrack('camera'); sceneInfoRefresh(); });
+    document.getElementById('siDelScene').addEventListener('click', function () { if (window.__mmdLoad && window.__mmdLoad.clearTrack) window.__mmdLoad.clearTrack('scene'); sceneInfoRefresh(); });
+    sceneInfoRefreshLoop();
+
+    // ======= 横/竖屏切换(④): window.AndroidUI.setOrientation ======= 
+    var orienBtn = document.getElementById('orienBtn');
+    var orienMode = 'portrait';   // 当前目标方向(默认竖屏; 首次自动跟随系统)
+    function orienLabel() {
+      orienBtn.textContent = orienMode === 'landscape' ? '⬌' : (orienMode === 'sensor' ? '⤢' : '⬍');
+    }
+    function applyOrientation(mode) {
+      orienMode = mode; orienLabel();
+      try { if (window.AndroidUI && window.AndroidUI.setOrientation) window.AndroidUI.setOrientation(mode); } catch (e) {}
+    }
+    // 点按循环: 竖屏 -> 横屏 -> 跟随系统(自动) -> 竖屏 ...
+    var orienOrder = ['portrait', 'landscape', 'sensor'];
+    orienBtn.addEventListener('click', function () {
+      var idx = orienOrder.indexOf(orienMode); idx = (idx < 0 ? 0 : (idx + 1) % orienOrder.length);
+      applyOrientation(orienOrder[idx]);
+    });
+    orienLabel();
+
+    // ======= 自由探索模式(小人第一人称): UI 控制 =======
+    var exploreBtn = document.getElementById('exploreBtn');
+    var exploreUI = document.getElementById('exploreUI');
+    var expLookZone = document.getElementById('expLookZone');
+    var expJoystick = document.getElementById('expJoystick');
+    var expKnob = expJoystick.querySelector('.knob');
+    var expExitBt = document.getElementById('expExitBt');
+    var expNoClipBt = document.getElementById('expNoClipBt');
+    var expUpBt = document.getElementById('expUpBt');
+    var expDownBt = document.getElementById('expDownBt');
+    var expGenFlyBt = document.getElementById('expGenFlyBt');
+    var expInput = { moveX: 0, moveZ: 0, lookDX: 0, lookDY: 0, vert: 0 };
+    var expPaused = false;
+    // 探索时隐藏的 UI(退出后恢复显示)。
+    // ⚠️ aspectBar(右上角改画幅/导出工具条)不在此列——它默认 display:none, 仅选画幅后 showAspectBar() 才显示。
+    //   若误加进清单, 退出探索时 expHideNormalUI(false) 会把它的内联 display:none 清成 ''(回退块级→错误显示)。
+    var expHideEls = ['topBar','exportBtn','status','pbar'];
+    // 探索期间每帧把输入交给 __mmd(轮询轻量)
+    var expTick;
+    function expHideNormalUI(hide) {
+      for (var i = 0; i < expHideEls.length; i++) {
+        var el = document.getElementById(expHideEls[i]); if (el) el.style.display = hide ? 'none' : '';
+      }
+    }
+    function refreshExpBtns() {
+      try {
+        var nc = window.__mmd.getExploreNoClip ? window.__mmd.getExploreNoClip() : false;
+        expNoClipBt.textContent = nc ? '🪄 穿墙' : '🧱 不穿墙';
+        var fly = window.__mmd.getExploreFlying ? window.__mmd.getExploreFlying() : false;
+        expGenFlyBt.textContent = fly ? '✋ 取消飞行(落地)' : '✋ 取消飞行(落地)';
+      } catch (e) {}
+    }
+    exploreBtn.addEventListener('click', function () {
+      try {
+        if (window.__mmd && window.__mmd.enterExplore) {
+          window.__mmd.enterExplore();
+          exploreUI.classList.add('show');
+          expHideNormalUI(true);
+          hideAspectBar();   // 探索中隐藏画幅工具条(若它恰好是选画幅后的 flex 状态)
+          refreshExpBtns();
+          // 启动输入轮询
+          if (!expTick) expTick = setInterval(function () {
+            try {
+              if (window.__mmd && window.__mmd.setExploreInput) {
+                window.__mmd.setExploreInput(expInput);
+                // ⚠️ 交付后立即清零本地 lookDX/lookDY(它们是"增量累积寄存器", 引擎每帧消费限幅后的量)。
+                //   若不清, 引擎消费后本地仍残留 → 下一tick 又把同一段滑动量喂回去 → 视角停不下地转。
+                expInput.lookDX = 0; expInput.lookDY = 0;
+              }
+            } catch (e) {}
+          }, 16);
+          status.textContent = '[探索] 左手摇杆移动 · 右手拖拽转视角';
+          status.style.display = 'none';  // 已被 expHideEls 隐藏
+        } else { status.textContent = '[探索] 引擎未就绪'; }
+      } catch (e) { status.textContent = '[探索] 出错 ' + (e.message||e); }
+    });
+    function exitExploreUI() {
+      try { if (window.__mmd && window.__mmd.exitExplore) window.__mmd.exitExplore(); } catch (e) {}
+      // ⚠️ 退出必须清空本地输入残留, 否则重进探索时残留的 lookDX/lookDY 会继续喂给引擎 → 视角转圈停不下
+      expInput.moveX = 0; expInput.moveZ = 0; expInput.lookDX = 0; expInput.lookDY = 0; expInput.vert = 0;
+      exploreUI.classList.remove('show');
+      expHideNormalUI(false);
+      if (expTick) { clearInterval(expTick); expTick = null; }
+      status.style.display = '';
+      status.textContent = '[探索] 已退出';
+    }
+    expExitBt.addEventListener('click', exitExploreUI);
+
+    // 穿墙切换
+    expNoClipBt.addEventListener('click', function () {
+      try { var nc = window.__mmd.setExploreNoClip ? !window.__mmd.getExploreNoClip() : false;
+        if (window.__mmd.setExploreNoClip) window.__mmd.setExploreNoClip(nc); } catch (e) {}
+      refreshExpBtns();
+    });
+
+    // ⬆ 上飞 / ⬇ 下飞: 按住持续升/降, 松开停止(自动进入飞行态)
+    function bindHold(btn, vertVal) {
+      btn.addEventListener('touchstart', function (e) {
+        e.preventDefault(); e.stopPropagation();
+        try { if (window.__mmd && window.__mmd.setExploreFlying) window.__mmd.setExploreFlying(true); } catch (x) {}
+        expInput.vert = vertVal;
+      }, { passive: false });
+      btn.addEventListener('touchend', function (e) { e.preventDefault(); expInput.vert = 0; refreshExpBtns(); }, { passive: false });
+      btn.addEventListener('touchcancel', function () { expInput.vert = 0; });
+      // 鼠标兜底(沙箱/辅助)
+      btn.addEventListener('mousedown', function () { try { if (window.__mmd && window.__mmd.setExploreFlying) window.__mmd.setExploreFlying(true); } catch (x) {} expInput.vert = vertVal; });
+      btn.addEventListener('mouseup', function () { expInput.vert = 0; refreshExpBtns(); });
+    }
+    bindHold(expUpBt, 1);
+    bindHold(expDownBt, -1);
+
+    // ✋ 取消飞行: 停止升降并落地(回到地面行走)
+    expGenFlyBt.addEventListener('click', function () {
+      try { if (window.__mmd && window.__mmd.setExploreFlying) window.__mmd.setExploreFlying(false); } catch (e) {}
+      expInput.vert = 0;
+      refreshExpBtns();
+    });
+
+    // 速度滑杆: 直接以"行走速度 m/s"调节(飞行=行走×3), 存 localStorage 记住, 启动恢复。
+    // ⚠️ 存的是【绝对速度值】(非倍率): base 逻辑怎么改都不影响用户记住的实际速度手感。
+    var expSpeedRange = document.getElementById('expSpeedRange');
+    var expSpeedLbl = document.getElementById('expSpeedLbl');
+    var SPEED_KEY = 'mmd_exp_speed';
+    function expSpeedLabel() {
+      try { if (expSpeedLbl) {
+        var v = +expSpeedRange.value;
+        expSpeedLbl.textContent = '速度 ' + (v < 0.1 ? v.toFixed(3) : v.toFixed(2)) + ' m/s';
+      } } catch (e) {}
+    }
+    function expSpeedApply() {
+      expSpeedLabel();
+      try { if (window.__mmd && window.__mmd.setExploreSpeed) window.__mmd.setExploreSpeed(+expSpeedRange.value); } catch (e) {}
+      try { localStorage.setItem(SPEED_KEY, String(expSpeedRange.value)); } catch (e) {}
+    }
+    if (expSpeedRange) {
+      // 恢复上次保存值
+      try { var saved = parseFloat(localStorage.getItem(SPEED_KEY)); if (isFinite(saved) && saved >= 0.01 && saved <= 3) expSpeedRange.value = saved; } catch (e) {}
+      expSpeedRange.addEventListener('input', expSpeedApply);
+    }
+    // 等引擎就绪后, 确保把恢复/默认的速度真正应用到相机(重进App也生效)
+    var expSptries = 0, expSpTimer = setInterval(function () {
+      if (window.__mmd && window.__mmd.setExploreSpeed) {
+        expSpeedApply();   // 应用已恢复的速度值到引擎
+        clearInterval(expSpTimer);
+      } else if (++expSptries > 40) { clearInterval(expSpTimer); }
+    }, 100);
+
+    // 探索视角灵敏度滑杆(转动速度): 1=默认, 0.2~4, 存 localStorage (v0.21.11功能回溯补回)
+    var expSensRange = document.getElementById('expSensRange');
+    var expSensLbl = document.getElementById('expSensLbl');
+    var SENS_KEY = 'mmd_exp_sens';
+    function expSensLabel() {
+      try { if (expSensLbl) expSensLbl.textContent = '视角 ' + (+expSensRange.value).toFixed(1) + 'x'; } catch (e) {}
+    }
+    function expSensApply() {
+      expSensLabel();
+      try { if (window.__mmd && window.__mmd.setExploreSens) window.__mmd.setExploreSens(+expSensRange.value); } catch (e) {}
+      try { localStorage.setItem(SENS_KEY, String(expSensRange.value)); } catch (e) {}
+    }
+    if (expSensRange) {
+      try { var ss = parseFloat(localStorage.getItem(SENS_KEY)); if (isFinite(ss) && ss >= 0.2 && ss <= 4) expSensRange.value = ss; } catch (e) {}
+      expSensRange.addEventListener('input', expSensApply);
+      // 引擎就绪后应用(重进App也生效)
+      var expSenTries = 0, expSenTimer = setInterval(function () {
+        if (window.__mmd && window.__mmd.setExploreSens) {
+          try { window.__mmd.setExploreSens(+expSensRange.value || 1); } catch (e) {}
+          expSensLabel(); clearInterval(expSenTimer);
+        } else if (++expSenTries > 40) clearInterval(expSenTimer);
+      }, 100);
+    }
+
+    // 左手摇杆: touch 拖拽 → moveX(左右)/moveZ(前后)
+    (function () {
+      var stickId = null, startX = 0, startY = 0, baseRect = null, stickLastLog = '';
+      function setMove(x, y) {
+        // 相对摇杆中心, 半径 ~60px
+        var cx = baseRect.left + baseRect.width / 2, cy = baseRect.top + baseRect.height / 2;
+        var dx = x - cx, dy = y - cy;
+        var r = Math.sqrt(dx*dx+dy*dy) || 1;
+        var maxR = 55; if (r > maxR) { dx *= maxR/r; dy *= maxR/r; r = maxR; }
+        expKnob.style.transform = 'translate(' + (dx) + 'px,' + (dy) + 'px)';
+        var nx = dx / maxR, ny = dy / maxR;   // -1..1
+        // 屏幕Y向下为正, 前推(ny负)= 前进; moveZ: 前为正
+        expInput.moveX = nx;
+        expInput.moveZ = -ny;   // 上推前进
+        // 诊断(节流): 摇杆输入变化时记一次
+        try {
+          if (window.AndroidFile && window.AndroidFile.log) {
+            var k = nx.toFixed(2) + ',' + (-ny).toFixed(2);
+            if (k !== stickLastLog) { window.AndroidFile.log('[expUI] stick move=' + k + ' (正X=右,正Z=前)'); stickLastLog = k; }
+          }
+        } catch (e) {}
+      }
+      expJoystick.addEventListener('touchstart', function (e) {
+        var t = e.changedTouches[0]; stickId = t.identifier; baseRect = expJoystick.getBoundingClientRect();
+        setMove(t.clientX, t.clientY); e.preventDefault();
+      }, { passive: false });
+      expJoystick.addEventListener('touchmove', function (e) {
+        if (expPaused) return;
+        for (var i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === stickId) { setMove(e.touches[i].clientX, e.touches[i].clientY); break; }
+        e.preventDefault();
+      }, { passive: false });
+      function endStick(e) {
+        var keep = false;
+        for (var i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === stickId) keep = true;
+        if (!keep) { stickId = null; expInput.moveX = 0; expInput.moveZ = 0; expKnob.style.transform = 'translate(0,0)'; }
+      }
+      expJoystick.addEventListener('touchend', endStick);
+      expJoystick.addEventListener('touchcancel', endStick);
+    })();
+
+    // 右半区转视角: touch 拖拽 → lookDX/lookDY(每帧清); 垂直滑动在飞行时控制升降
+    (function () {
+      function expUiLog(m) { try { if (window.AndroidFile && window.AndroidFile.log) window.AndroidFile.log('[expUI] ' + m); } catch (e) {} }
+      var lookId = null, lastX = 0, lastY = 0, accumDX = 0, accumDY = 0;
+      expLookZone.addEventListener('touchstart', function (e) {
+        var t = e.changedTouches[0]; lookId = t.identifier; lastX = t.clientX; lastY = t.clientY;
+        accumDX = 0; accumDY = 0;
+        expUiLog('look touchstart id=' + lookId + ' at(' + lastX + ',' + lastY + ')');
+        e.preventDefault();
+      }, { passive: false });
+      expLookZone.addEventListener('touchmove', function (e) {
+        if (expPaused) return;
+        for (var i = 0; i < e.touches.length; i++) {
+          var t = e.touches[i];
+          if (t.identifier === lookId) {
+            var dx = t.clientX - lastX, dy = t.clientY - lastY;
+            lastX = t.clientX; lastY = t.clientY;
+            accumDX += dx; accumDY += dy;
+            expInput.lookDX += dx;
+            expInput.lookDY += dy;
+            // 🔨 上下飞修复(2026-08-09, 基于v0.21.10回溯): 透明区上下滑【永远只调俯仰视角】,
+            //   不再自动触发垂直升降。原逻辑在飞行态下把"微小的上下滑动"强制映射成 vert=±1(全速升降),
+            //   导致用户想调视角却整个人上下飞。垂直升降一律只走⬆上飞/⬇下飞按钮(按住持续,松停)。
+            break;
+          }
+        }
+        // 节流: 每秒最多打一次滑动日志(避免刷屏)
+        if (accumDX !== 0 || accumDY !== 0) {
+          if (!expUiLog._lastT || Date.now() - expUiLog._lastT > 1000) {
+            expUiLog._lastT = Date.now();
+            expUiLog('look drag Δ=(' + accumDX + ',' + accumDY + ') 累计lookDX=' + expInput.lookDX);
+          }
+        }
+        e.preventDefault();
+      }, { passive: false });
+      function endLook(e) {
+        var keep = false;
+        for (var i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === lookId) keep = true;
+        if (!keep) {
+          expUiLog('look end id=' + lookId + ' 本次累计Δ=(' + accumDX + ',' + accumDY + ')');
+          lookId = null; expInput.vert = 0; accumDX = 0; accumDY = 0;
+        }
+      }
+      expLookZone.addEventListener('touchend', endLook);
+      expLookZone.addEventListener('touchcancel', endLook);
+    })();
+
+    // ======= 导出(带 分辨率/帧率/画质 设置面板) =======
+    var btn = document.getElementById('exportBtn');
+    var info = document.getElementById('exportInfo');
+    var progressWrap = document.getElementById('progressWrap');
+    var barFill = document.getElementById('barFill');
+    var progText = document.getElementById('progText');
+    var exportPanel = document.getElementById('exportPanel');
+    var expRes = document.getElementById('expRes');
+    var expFps = document.getElementById('expFps');
+    var expQuality = document.getElementById('expQuality');
+    var exporting = false;
+
+    // ===== 画幅 + 取景框(仅选画幅时显示) =====
+    var ASPECT = { '16:9': 16/9, '4:3': 4/3, '1:1': 1, '3:4': 3/4, '9:16': 9/16 };
+    var AR_LABEL = { '16:9': '横屏', '4:3': '偏横', '1:1': '方形', '3:4': '偏竖', '9:16': '竖屏' };
+    var curAspect = '9:16';            // 默认 9:16 竖屏
+    var vframe = document.getElementById('vframe');
+    // 取景框四块遮罩 + 白色边框(选画幅后显示, 框内=导出区域)
+    var vfT = document.getElementById('vfTop'), vfB = document.getElementById('vfBottom');
+    var vfL = document.getElementById('vfLeft'), vfR = document.getElementById('vfRight');
+    var vfBd = document.getElementById('vfBorder');
+    var expAdvWrap = document.getElementById('expAdvWrap');
+    document.getElementById('expAdv').addEventListener('click', function () {
+      expAdvWrap.style.display = expAdvWrap.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // ===== 导出画质快捷档 =====
+    var QUAL = {
+      '流畅': { res: 1280, fps: 30, q: 'standard' },
+      '均衡': { res: 1920, fps: 30, q: 'standard' },
+      '高清': { res: 1920, fps: 60, q: 'high' },
+      '超清': { res: 3840, fps: 30, q: 'high' }
+    };
+    var curQ = '均衡';
+    function applyQ(mode) {
+      curQ = mode;
+      var p = QUAL[mode]; if (!p) return;
+      expRes.value = String(p.res); expFps.value = String(p.fps); expQuality.value = p.q;
+      document.querySelectorAll('.qBt').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-q') === mode); });
+    }
+    document.querySelectorAll('.qBt').forEach(function (bt) {
+      bt.addEventListener('click', function () { applyQ(bt.getAttribute('data-q')); });
+    });
+    applyQ('均衡');   // 默认均衡档
+    // 用户手动改分辨率/帧率/画质时, 若不再匹配任何档位, 取消档位高亮(同自定义)
+    ['expRes', 'expFps', 'expQuality'].forEach(function (selId) {
+      document.getElementById(selId).addEventListener('change', function () {
+        var matched = Object.keys(QUAL).filter(function (k) {
+          var p = QUAL[k]; return +expRes.value === p.res && +expFps.value === p.fps && expQuality.value === p.q;
+        });
+        curQ = matched[0] || '';
+        document.querySelectorAll('.qBt').forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-q') === curQ); });
+      });
+    });
+    document.querySelectorAll('.vfBt').forEach(function (bt) {
+      bt.addEventListener('click', function () {
+        curAspect = bt.getAttribute('data-ar');
+        document.querySelectorAll('.vfBt').forEach(function (b) { b.classList.remove('sel'); });
+        bt.classList.add('sel');
+        // ✅ 选完画幅: 既显示【可见取景框】(框内=导出区域, 用户能判断边界)，
+        //   又用 camera.viewport 让预览只渲染取景框范围(所见即所得=导出比例/人形)。
+        //   收起大面板+overlay, 用户直接拖画面调取景(框 pointer-events:none 穿透)。
+        syncViewFrame();
+        exportPanel.classList.remove('show');
+        expOverlay.classList.remove('show');
+        vframe.style.display = 'block';
+        showAspectBar();
+      });
+    });
+    function markAspect() {
+      document.querySelectorAll('.vfBt').forEach(function (b) {
+        if (b.getAttribute('data-ar') === curAspect) b.classList.add('sel'); else b.classList.remove('sel');
+      });
+    }
+    // 取景矩形(相对 canvas/屏幕 px): left/top = 左上角, w/h = 宽高, 与导出画幅同比例。
+    // 统一基准 = canvas(clientWidth/Height, 100vw×100vh 屏幕), 与 Babylon viewport 归一化同源,
+    // 避免安全区/状态栏让 canvas≠window 时 CSS 框与 viewport 渲染偏移。
+    function aspectRect() {
+      var mmdCv = document.getElementById('mmd');
+      var cw = (mmdCv && mmdCv.clientWidth) || window.innerWidth || 412;
+      var ch = (mmdCv && mmdCv.clientHeight) || window.innerHeight || 915;
+      var margin = Math.min(cw, ch) * 0.06;
+      var maxW = cw - margin * 2, maxH = ch - margin * 2;
+      var ar = ASPECT[curAspect] || 16/9;
+      var w, h;
+      if (maxW / maxH > ar) { h = maxH; w = h * ar; } else { w = maxW; h = w / ar; }
+      return { cw: cw, ch: ch, left: (cw - w) / 2, top: (ch - h) / 2, w: w, h: h };
+    }
+    // 画取景框(CSS 四遮罩+白边框) + 同步 camera.viewport(框内渲染=导出的 9:16 画面)
+    function syncViewFrame() {
+      var r = aspectRect();
+      var vw = r.w / r.cw, vh = r.h / r.ch;
+      // 1) 可见取景框: 框外压暗 + 白色边框标记边界
+      vframe.style.display = 'block';
+      vfT.style.top = '0'; vfT.style.height = r.top + 'px';
+      vfB.style.top = (r.top + r.h) + 'px'; vfB.style.height = (r.ch - r.top - r.h) + 'px';
+      vfL.style.top = r.top + 'px'; vfL.style.height = r.h + 'px';
+      vfL.style.left = '0'; vfL.style.width = r.left + 'px';
+      vfR.style.top = r.top + 'px'; vfR.style.height = r.h + 'px';
+      vfR.style.left = (r.left + r.w) + 'px'; vfR.style.width = (r.cw - r.left - r.w) + 'px';
+      vfBd.style.left = r.left + 'px'; vfBd.style.top = r.top + 'px';
+      vfBd.style.width = r.w + 'px'; vfBd.style.height = r.h + 'px';
+      // 2) camera.viewport 渲染到同一取景矩形(相对 canvas 归一化):
+      //    Babylon 投影 aspect 自动跟随 viewport(getAspectRatio=renderW*vw/(renderH*vh)=画幅比例),
+      //    框内看到的即导出的画幅与人形。
+      if (window.__mmd && window.__mmd.setPreviewViewport) {
+        try {
+          window.__mmd.setPreviewViewport((r.cw - r.w) / 2 / r.cw, (r.ch - r.h) / 2 / r.ch, vw, vh);
+        } catch (e) {}
+      }
+      window.__mmd._previewViewportActive = true;
+    }
+    function hideViewFrame() { vframe.style.display = 'none'; }
+    window.addEventListener('resize', function () {
+      if (window.__mmd && window.__mmd.engine && window.__mmd.engine._mmdExporting) return;
+      if (vframe.style.display !== 'none') syncViewFrame();
+    });
+
+    function showInfo(txt) { info.style.display = 'block'; info.textContent = txt; }
+    function showProgress(frame, total, remainSec) {
+      progressWrap.style.display = 'block';
+      var pct = total > 0 ? Math.min(100, Math.round(frame / total * 100)) : 0;
+      barFill.style.width = pct + '%';
+      var avg = (total - frame) > 0 && remainSec != null ? remainSec : 0;
+      progText.textContent = '导出中 ' + pct + '%  (' + frame + '/' + total + ' 帧)  预计剩余 ' + formatTime(avg);
+    }
+    function hideProgress() { progressWrap.style.display = 'none'; }
+    function formatTime(sec) {
+      sec = Math.max(0, sec);
+      if (sec < 60) return sec.toFixed(0) + ' 秒';
+      return Math.floor(sec / 60) + ' 分 ' + Math.round(sec % 60) + ' 秒';
+    }
+
+    var expOverlay = document.getElementById('expOverlay');
+    var aspectBar = document.getElementById('aspectBar');
+    var abAspect = document.getElementById('abAspect');
+    function showAspectBar() { abAspect.textContent = curAspect; aspectBar.style.display = 'flex'; }
+    function hideAspectBar() { aspectBar.style.display = 'none'; }
+    function openAspectUI() {
+      hideAspectBar();
+      // 打开选择面板时先还原全画布 + 隐藏旧取景框(方便看整体/选比例)
+      if (window.__mmd && window.__mmd.resetPreviewViewport) { try { window.__mmd.resetPreviewViewport(); } catch (e) {} }
+      hideViewFrame();
+      markAspect(); exportPanel.classList.add('show'); expOverlay.classList.add('show'); expAdvWrap.style.display = 'none';
+    }
+    function closeAspectUI() {
+      exportPanel.classList.remove('show'); expOverlay.classList.remove('show'); hideViewFrame();
+      // 关闭时还原全画布预览
+      if (window.__mmd && window.__mmd.resetPreviewViewport) { try { window.__mmd.resetPreviewViewport(); } catch (e) {} }
+    }
+    // "改画幅": 重开面板选别的比例
+    document.getElementById('abScene').addEventListener('click', function () { openAspectUI(); });
+    // "▶ 导出": 直接用当前画幅导出
+    document.getElementById('abGo').addEventListener('click', function () {
+      hideAspectBar();
+      startExport();
+    });
+    btn.addEventListener('click', function () {
+      if (exporting) { window.__mmdExport.cancel(); btn.textContent = '🎬 画幅'; exporting = false; hideProgress(); return; }
+      openAspectUI();   // 弹画幅面板选比例
+    });
+    document.getElementById('exportX').addEventListener('click', function () { closeAspectUI(); hideAspectBar(); });
+    // 注: expOverlay 已设 pointer-events:none(仅压暗不拦截触摸)。选画幅后 显示取景框(框内=导出区域) +
+    //     camera.viewport 渲染取景范围, 框 pointer-events:none 穿透, 用户直接拖 3D 画面调取景, 所见即所得。
+
+    function currentDurationSec() {
+      try {
+        var rt = window.__mmd && window.__mmd.mmdRuntime;
+        var dur = rt && rt._animationFrameTimeDuration;
+        if (dur && dur > 0) return dur / 30;
+      } catch (e) {}
+      return 13.5;
+    }
+
+    document.getElementById('expGo').addEventListener('click', function () {
+      closeAspectUI();
+      startExport();
+    });
+
+    function startExport() {
+      if (!window.__mmd || !window.__mmdExport) { showInfo('引擎未就绪'); return; }
+      var duration = currentDurationSec();
+      var fps = +expFps.value || 30;
+      var long = +expRes.value || 1920;      // 长边基准
+      var ar = ASPECT[curAspect] || (16/9);
+      var width, height;
+      if (ar >= 1) { width = long; height = Math.round(long / ar); }   // 横向/方形
+      else { height = long; width = Math.round(long * ar); }            // 竖向
+      if (width % 2) width++; if (height % 2) height++;                 // 编码需偶尺寸
+      var quality = expQuality.value || 'standard';
+      var config = { width: width, height: height, fps: fps, totalFrames: Math.round(duration * fps), name: 'mmd_dance', quality: quality };
+      exporting = true;
+      btn.textContent = '取消导出';
+      showInfo('导出中... ' + width + 'x' + height + ' @' + fps + ' (' + curAspect + ') 时长 ' + duration.toFixed(1) + 's');
+      showProgress(0, config.totalFrames, 0);
+      try {
+        window.__mmdExport.start(Object.assign({}, config, {
+          onProgress: function (f, total, remain) { showProgress(f, total, remain); },
+          onDone: function (ok) {
+            exporting = false;
+            btn.textContent = '🎬 画幅';
+            hideProgress();
+            showInfo(ok ? '导出完成, 请看 Toast' : '导出失败/取消');
+          }
+        }));
+      } catch (e) {
+        exporting = false; btn.textContent = '🎬 画幅'; hideProgress();
+        showInfo('启动导出失败: ' + (e && e.message));
+      }
+    }
+  </script>
+</body>
+</html>

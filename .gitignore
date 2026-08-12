@@ -1,0 +1,20 @@
+# === Android / Gradle ===
+.gradle/
+build/
+*.iml
+.idea/
+.DS_Store
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# ⚠️ 签名私钥绝不入库(release.keystore 是 APK 签名密钥, 泄漏可伪造签名 APK)
+keystore/
+*.keystore
+*.jks
+
+# === frontend 构建临时产物(不入库; 入库的是 app/src/main/assets/dist/ 即部署后的) ===
+frontend/node_modules/
+frontend/dist/
+frontend/package-lock.json
