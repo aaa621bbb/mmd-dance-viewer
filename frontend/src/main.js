@@ -37,6 +37,7 @@
 
 import { Engine, Scene, Vector3, Quaternion, Matrix, Color3, Color4, CreateGround, Ray, Plane } from "@babylonjs/core";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { GlowLayer } from "@babylonjs/core/Layers/glowLayer";
@@ -1398,6 +1399,708 @@ async function main() {
     };
     window.__mmd.getExploreSens = function () { return expSens; };
     window.__mmd.getExploreFlySpeed = function () { return expFlySpeed; };
+
+    // ============================================================================
+    // 模块 A：巨人踩城
+    // ============================================================================
+    function disposeDeep(rootNode) {
+      try {
+        var children = rootNode.getChildren ? rootNode.getChildren() : [];
+        for (var i = children.length - 1; i >= 0; --i) {
+          var c = children[i];
+          try { disposeDeep(c); } catch (e) {}
+          if (c && c.material) { try { c.material.dispose(); } catch (e) {} }
+          try { if (c.dispose) c.dispose(); } catch (e) {}
+        }
+      } catch (e) {}
+      if (rootNode && rootNode.material) { try { rootNode.material.dispose(); } catch (e) {} }
+    }
+    function simpleMeshMat(scene, color, emissive) {
+      var m = new StandardMaterial("cityMat_" + Math.random(), scene);
+      m.diffuseColor = color;
+      m.specularColor = new Color3(0, 0, 0);
+      if (emissive) m.emissiveColor = emissive;
+      return m;
+    }
+    function makeHumanMeshes(parent, color, scene, scale) {
+      scale = scale || 1;
+      var root = new TransformNode("cityPerson", scene);
+      root.parent = parent;
+      var mat = simpleMeshMat(scene, color);
+
+      var torso = MeshBuilder.CreateBox("p_torso", { width: 0.35 * scale, height: 0.62 * scale, depth: 0.2 * scale }, scene);
+      torso.parent = root; torso.position.y = 0.95 * scale; torso.material = mat;
+      var head = MeshBuilder.CreateSphere("p_head", { diameter: 0.26 * scale, segments: 6 }, scene);
+      head.parent = root; head.position.y = 1.42 * scale; head.material = mat;
+      var legMat = simpleMeshMat(scene, color.scale(0.75));
+      var lLeg = MeshBuilder.CreateBox("p_ll", { width: 0.11 * scale, height: 0.62 * scale, depth: 0.13 * scale }, scene);
+      lLeg.parent = root; lLeg.position.set(-0.08 * scale, 0.35 * scale, 0); lLeg.material = legMat;
+      var rLeg = MeshBuilder.CreateBox("p_rl", { width: 0.11 * scale, height: 0.62 * scale, depth: 0.13 * scale }, scene);
+      rLeg.parent = root; rLeg.position.set(0.08 * scale, 0.35 * scale, 0); rLeg.material = legMat;
+      var armMat = simpleMeshMat(scene, color.scale(0.85));
+      var lArm = MeshBuilder.CreateBox("p_la", { width: 0.09 * scale, height: 0.48 * scale, depth: 0.1 * scale }, scene);
+      lArm.parent = root; lArm.position.set(-0.25 * scale, 1.0 * scale, 0); lArm.material = armMat;
+      var rArm = MeshBuilder.CreateBox("p_ra", { width: 0.09 * scale, height: 0.48 * scale, depth: 0.1 * scale }, scene);
+      rArm.parent = root; rArm.position.set(0.25 * scale, 1.0 * scale, 0); rArm.material = armMat;
+      root._body = torso; root._head = head;
+      return root;
+    }
+    function cityMatColor(c) { return new Color3(c.r, c.g, c.b); }
+
+    var city = {
+      active: false, root: null, giantRoot: null, player: null, cam: null, obs: null,
+      input: { moveX: 0, moveZ: 0, sprint: false, dodge: false },
+      keys: { up: false, down: false, left: false, right: false, sprint: false },
+      invincible: false, died: false, elapsed: 0, timeLimit: 60,
+      state: "idle", windupT: 0, stompT: 0, cooldown: 0, lastHit: -10, footSide: 1,
+      obstacles: [], npcs: [], savedVis: true, savedAnimHandle: null, savedUserPaused: null,
+      savedRootPos: null, savedRootRot: null, savedPhys: null, savedIk: null,
+      cityScale: 0.16, observe: false
+    };
+    window.__mmdCity = {};
+
+    function cityStatus(msg) {
+      try { if (statusEl) statusEl.textContent = msg; } catch (e) {}
+    }
+    function cityAddBox(cx, cz, w, d, h, color, emissive) {
+      var box = MeshBuilder.CreateBox("cityBuild", { width: w, height: h, depth: d }, scene);
+      box.parent = city.root;
+      box.position.set(cx, h / 2, cz);
+      box.material = simpleMeshMat(scene, color, emissive);
+      city.obstacles.push({ minX: cx - w / 2, maxX: cx + w / 2, minZ: cz - d / 2, maxZ: cz + d / 2 });
+      return box;
+    }
+    function cityAddLamp(cx, cz) {
+      var pole = MeshBuilder.CreateCylinder("cityLampPole", { height: 5, diameterTop: 0.12, diameterBottom: 0.2 }, scene);
+      pole.parent = city.root; pole.position.set(cx, 2.5, cz);
+      pole.material = simpleMeshMat(scene, new Color3(0.12, 0.12, 0.13));
+      var lamp = MeshBuilder.CreateBox("cityLampHead", { width: 0.9, height: 0.25, depth: 0.35 }, scene);
+      lamp.parent = city.root; lamp.position.set(cx, 4.95, cz);
+      lamp.material = simpleMeshMat(scene, new Color3(0.35, 0.35, 0.38), new Color3(0.15, 0.15, 0.16));
+    }
+    function cityAddTree(cx, cz) {
+      var trunk = MeshBuilder.CreateCylinder("cityTreeTrunk", { height: 2.3, diameterTop: 0.28, diameterBottom: 0.38 }, scene);
+      trunk.parent = city.root; trunk.position.set(cx, 1.15, cz);
+      trunk.material = simpleMeshMat(scene, new Color3(0.3, 0.2, 0.12));
+      var crown = MeshBuilder.CreateSphere("cityTreeCrown", { diameter: 2.0, segments: 5 }, scene);
+      crown.parent = city.root; crown.position.set(cx, 2.9, cz);
+      crown.material = simpleMeshMat(scene, new Color3(0.15 + Math.random() * 0.12, 0.32 + Math.random() * 0.18, 0.14));
+    }
+    function cityBuildScene() {
+      city.root = new TransformNode("cityRoot", scene);
+      city.root.scaling.set(city.cityScale, city.cityScale, city.cityScale);
+
+      // 主路面 / 人行道
+      var ground = MeshBuilder.CreateGround("cityGround", { width: 120, height: 120, subdivisions: 1 }, scene);
+      ground.parent = city.root; ground.position.y = 0.001;
+      ground.material = simpleMeshMat(scene, new Color3(0.12, 0.14, 0.16));
+      var roadMat = simpleMeshMat(scene, new Color3(0.22, 0.24, 0.28));
+      var rx = MeshBuilder.CreateGround("cityRoadX", { width: 120, height: 11, subdivisions: 1 }, scene);
+      rx.parent = city.root; rx.position.y = 0.005; rx.material = roadMat;
+      var rz = MeshBuilder.CreateGround("cityRoadZ", { width: 11, height: 120, subdivisions: 1 }, scene);
+      rz.parent = city.root; rz.position.y = 0.006; rz.material = roadMat;
+
+      // 建筑（低多边形长方体）
+      var palette = [
+        new Color3(0.24, 0.28, 0.34), new Color3(0.30, 0.26, 0.30),
+        new Color3(0.20, 0.32, 0.38), new Color3(0.32, 0.28, 0.22),
+        new Color3(0.26, 0.26, 0.38)
+      ];
+      var seedBlocks = [
+        [-34, -20, 13, 11, 18], [-12, -22, 12, 12, 24], [12, -24, 12, 12, 20], [34, -20, 13, 11, 26],
+        [-34, 20, 13, 11, 22], [-12, 22, 12, 12, 19], [12, 24, 12, 12, 25], [34, 20, 13, 11, 20],
+        [-40, -40, 14, 14, 30], [40, -40, 14, 14, 28], [-40, 40, 14, 14, 24], [40, 40, 14, 14, 32],
+        [-52, 0, 14, 20, 34], [52, 0, 14, 20, 28]
+      ];
+      for (var i = 0; i < seedBlocks.length; ++i) {
+        var b = seedBlocks[i];
+        cityAddBox(b[0], b[1], b[2], b[3], b[4], palette[i % palette.length]);
+        // 侧楼小窗
+        var win = MeshBuilder.CreatePlane("cityWin", { width: 0.3, height: 0.4 }, scene);
+        win.parent = city.root; win.position.set(b[0], b[4] * 0.5 + 0.6, b[1] + b[3] / 2 + 0.01);
+        win.rotation.y = 0;
+        win.material = simpleMeshMat(scene, new Color3(0.4, 0.45, 0.48), new Color3(0.28, 0.32, 0.33));
+      }
+
+      // 路灯 / 树（沿路）
+      var lampPts = [[-16, 7], [16, 7], [-16, -7], [16, -7], [7, -16], [7, 16], [-7, -16], [-7, 16]];
+      for (var j = 0; j < lampPts.length; ++j) cityAddLamp(lampPts[j][0], lampPts[j][1]);
+      var treePts = [[-26, 8], [26, 8], [-26, -8], [26, -8], [8, -26], [8, 26], [-8, -26], [-8, 26]];
+      for (var k = 0; k < treePts.length; ++k) cityAddTree(treePts[k][0], treePts[k][1]);
+    }
+    function cityPlayerWorld() {
+      if (!city.player) return new Vector3(0, 0.1, 0);
+      var p = city.player.position;
+      return new Vector3(p.x * city.cityScale, 0.08 * city.cityScale + p.y * city.cityScale, p.z * city.cityScale);
+    }
+    function cityPlayerLocal() {
+      return city.player ? city.player.position.clone() : new Vector3(0, 0, 0);
+    }
+    function cityGiantLocal() {
+      if (!city.giantRoot) return new Vector3(0, 0, 0);
+      return new Vector3(city.giantRoot.position.x / city.cityScale, 0, city.giantRoot.position.z / city.cityScale);
+    }
+    function cityCollide(x, z) {
+      var r = 0.4;
+      for (var i = 0; i < city.obstacles.length; ++i) {
+        var o = city.obstacles[i];
+        var nx = Math.max(o.minX, Math.min(o.maxX, x));
+        var nz = Math.max(o.minZ, Math.min(o.maxZ, z));
+        var dx = x - nx, dz = z - nz;
+        if (dx * dx + dz * dz < r * r) return true;
+      }
+      return false;
+    }
+    function cityGiantAvoid(px, pz) {
+      for (var i = 0; i < city.obstacles.length; ++i) {
+        var o = city.obstacles[i];
+        var nx = Math.max(o.minX, Math.min(o.maxX, px));
+        var nz = Math.max(o.minZ, Math.min(o.maxZ, pz));
+        var dx = px - nx, dz = pz - nz;
+        if (dx * dx + dz * dz < 2.6 * 2.6) return true;
+      }
+      return false;
+    }
+    function citySpawnNpcs() {
+      var colors = [new Color3(0.9, 0.65, 0.2), new Color3(0.3, 0.75, 0.5), new Color3(0.75, 0.35, 0.5), new Color3(0.4, 0.55, 0.85)];
+      var pts = [[-8, 4], [8, -4], [4, 8], [-4, -8], [16, 9], [-16, -9], [9, -20], [-9, 20]];
+      for (var i = 0; i < pts.length; ++i) {
+        var npc = makeHumanMeshes(city.root, colors[i % colors.length], scene, 1);
+        npc.position.set(pts[i][0], 0, pts[i][1]);
+        city.npcs.push({ root: npc, flattened: false });
+      }
+    }
+    function cityReset() {
+      city.elapsed = 0; city.died = false; city.state = "idle"; city.cooldown = 0; city.windupT = 0; city.stompT = 0;
+      if (city.player) {
+        city.player.position.set(0, 0, -6);
+        city.player.rotation.y = 0;
+        city.player.rotation.x = 0; city.player.rotation.z = 0;
+        if (city.player._body) city.player._body.scaling.y = 1;
+        if (city.player._head) city.player._head.scaling.y = 1;
+      }
+      for (var i = 0; i < city.npcs.length; ++i) {
+        var n = city.npcs[i];
+        n.flattened = false;
+        if (n.root._body) n.root._body.scaling.y = 1;
+      }
+      if (city.giantRoot) {
+        city.giantRoot.position.set(0, 0, 12 * city.cityScale);
+        city.giantRoot.rotation.set(0, Math.PI, 0);
+      }
+      cityStatus("躲避巨人的脚步，存活 " + city.timeLimit + " 秒");
+    }
+    function cityEnter() {
+      if (city.active) return { ok: false, error: "already active" };
+      var m = activeModel();
+      if (!m || !m.mmdModel) return { ok: false, error: "请先加载一个 PMX 模型" };
+      city.active = true;
+      var md = m.mmdModel;
+      var root = m.mesh || window.__mmd.getModelRoot();
+      city.giantRoot = root;
+      city.savedRootPos = root.position.clone();
+      city.savedRootRot = root.rotation.clone();
+      city.savedAnimHandle = window.__mmd._modelAnimHandle; window.__mmd._modelAnimHandle = null;
+      city.savedUserPaused = window.__mmd._userPaused; window.__mmd._userPaused = true;
+      try { md.setRuntimeAnimation(null); } catch (e) {}
+      city.savedPhys = Uint8Array.from(md.rigidBodyStates); md.rigidBodyStates.fill(0);
+      city.savedIk = Uint8Array.from(md.ikSolverStates); md.ikSolverStates.fill(0);
+      city.savedVis = ground.isVisible; ground.isVisible = false;
+      city._boneCache = {};
+      if (md.runtimeBones) {
+        for (var bi = 0; bi < md.runtimeBones.length; ++bi) city._boneCache[md.runtimeBones[bi].name] = md.runtimeBones[bi];
+      }
+      city.obstacles.length = 0; city.npcs.length = 0;
+      cityBuildScene();
+      citySpawnNpcs();
+      city.player = makeHumanMeshes(city.root, new Color3(0.88, 0.3, 0.25), scene, 1);
+      city.player.position.set(0, 0, -6);
+      city.giantRoot.position.set(0, 0, 12 * city.cityScale);
+
+      var pw = cityPlayerWorld();
+      city.cam = new ArcRotateCamera("cityCam", -Math.PI / 2, 1.05, 3.2, pw, scene);
+      city.cam.lowerRadiusLimit = 1.2; city.cam.upperRadiusLimit = 10;
+      city.cam.inertia = 0.3;
+      scene.addCamera(city.cam);
+      scene.activeCamera = city.cam;
+      try { camera.detachControl(canvas); } catch (e) {}
+
+      cityReset();
+      city.obs = function () {
+        try { cityTick(); } catch (e) { try { if (window.AndroidFile && window.AndroidFile.log) window.AndroidFile.log("cityTick err " + (e && e.message || e)); } catch (e2) {} }
+      };
+      scene.onBeforeRenderObservable.add(city.obs, 0, true);
+      if (!engine._activeRenderLoops || engine._activeRenderLoops.length === 0) engine.runRenderLoop(renderFrame);
+      window.__mmd._physSmoothTick = function () {};
+      return { ok: true };
+    }
+    function cityExit() {
+      if (!city.active) return { ok: false, error: "not active" };
+      city.active = false;
+      try { if (city.obs) scene.onBeforeRenderObservable.remove(city.obs); } catch (e) {}
+      try { if (city.cam && scene.removeCamera) scene.removeCamera(city.cam); } catch (e) {}
+      try { if (city.cam) city.cam.dispose(); } catch (e) {}
+      disposeDeep(city.root);
+      try { if (city.root) city.root.dispose(); } catch (e) {}
+      var oldCityBoneCache = city._boneCache;
+      city.root = null; city.player = null; city._boneCache = null;
+      city.obstacles.length = 0; city.npcs.length = 0;
+
+      var m = activeModel();
+      var md = m && m.mmdModel;
+      if (md && city.giantRoot) {
+        try { if (city.savedPhys) md.rigidBodyStates.set(city.savedPhys); } catch (e) {}
+        try { if (city.savedIk) md.ikSolverStates.set(city.savedIk); } catch (e) {}
+        if (city.savedRootPos) city.giantRoot.position.copyFrom(city.savedRootPos);
+        if (city.savedRootRot) city.giantRoot.rotation.copyFrom(city.savedRootRot);
+        if (city.savedAnimHandle && md.setRuntimeAnimation) {
+          try { md.setRuntimeAnimation(city.savedAnimHandle); window.__mmd._modelAnimHandle = city.savedAnimHandle; } catch (e) {}
+        } else {
+          window.__mmd._modelAnimHandle = null;
+          if (oldCityBoneCache) {
+            for (var bn in oldCityBoneCache) {
+              var cb = oldCityBoneCache[bn];
+              try { if (cb.linkedBone.setRotationQuaternion) cb.linkedBone.setRotationQuaternion(Quaternion.Identity(), 0); } catch (e2) {}
+            }
+          }
+        }
+        window.__mmd._userPaused = city.savedUserPaused;
+        window.__mmd._absT0 = undefined;
+      }
+      try { ground.isVisible = city.savedVis; } catch (e) {}
+      scene.activeCamera = window.__mmd.usingMmdCam ? (mmdCamNode || camera) : camera;
+      try { camera.attachControl(canvas, true); } catch (e) {}
+      window.__mmd._physSmoothTick = function (mmd) {
+        if (physLerp.smooth <= 0 || !mmd || !mmd.runtimeBones) return;
+        // 恢复原布料平滑逻辑(见函数定义处, 这里只做兼容兜底)
+        try {
+          var a = physLerp.smooth, rb = mmd.runtimeBones;
+          for (var i = 0; i < rb.length; i++) {
+            if (!rb[i].rigidBodyIndices || rb[i].rigidBodyIndices.length === 0) continue;
+            var off = i * 16, wt = mmd.worldTransformMatrices;
+            if (!wt) continue;
+            var x = wt[off + 12], y = wt[off + 13], z = wt[off + 14];
+            if (!rb[i]._smPrev) rb[i]._smPrev = [x, y, z];
+            var pv = rb[i]._smPrev;
+            var nx = pv[0] + (x - pv[0]) * a, ny = pv[1] + (y - pv[1]) * a, nz = pv[2] + (z - pv[2]) * a;
+            wt[off + 12] = nx; wt[off + 13] = ny; wt[off + 14] = nz;
+            pv[0] = x; pv[1] = y; pv[2] = z;
+          }
+        } catch (e) {}
+      };
+      if (!engine._activeRenderLoops || engine._activeRenderLoops.length === 0) engine.runRenderLoop(renderFrame);
+      return { ok: true };
+    }
+    function cityTick() {
+      if (!city.active) return;
+      var dt = Math.min(0.05, engine.getDeltaTime() / 1000 || 0.016);
+
+      city.elapsed += dt;
+      var sprint = city.input.sprint || city.keys.sprint;
+      var speed = 5.0 * (sprint ? 1.25 : 1);
+      var mx = city.input.moveX + (city.keys.right ? 1 : 0) - (city.keys.left ? 1 : 0);
+      var mz = city.input.moveZ + (city.keys.up ? 1 : 0) - (city.keys.down ? 1 : 0);
+      var mag = Math.sqrt(mx * mx + mz * mz);
+      if (mag > 1) { mx /= mag; mz /= mag; }
+
+      if (!city.died) {
+        var old = city.player.position.clone();
+        var nx = old.x + mx * speed * dt;
+        var nz = old.z + mz * speed * dt;
+        if (!cityCollide(nx, old.z)) { city.player.position.x = nx; }
+        if (!cityCollide(city.player.position.x, nz)) { city.player.position.z = nz; }
+        if (mx !== 0 || mz !== 0) {
+          city.player.rotation.y = Math.atan2(mx, mz);
+          city.player.rotation.x = 0; city.player.rotation.z = 0;
+        }
+      }
+
+      // 巨人追/踩
+      var gl = cityGiantLocal();
+      var pl = cityPlayerLocal();
+      var dxL = pl.x - gl.x, dzL = pl.z - gl.z;
+      var distL = Math.sqrt(dxL * dxL + dzL * dzL);
+      var giantSpeed = 2.8 + Math.min(0.6, city.elapsed * 0.012);
+      var nowAbs = performance.now() / 1000;
+
+      if (!city.died) {
+        if (city.state === "stomp") {
+          city.stompT += dt;
+          var fy = 0.8 * (1 - Math.min(1, city.stompT / 0.36));
+          city.giantRoot.position.y = fy;
+          var fwd = new Vector3(Math.sin(city.giantRoot.rotation.y), 0, Math.cos(city.giantRoot.rotation.y));
+          var foot = city.giantRoot.position.clone().add(fwd.scale(0.5)).add(new Vector3(fwd.z, 0, -fwd.x).scale(0.24 * city.footSide));
+          var playerCenterW = cityPlayerWorld();
+          if (city.stompT >= 0.28) {
+            var hitW = (foot.x - playerCenterW.x) * (foot.x - playerCenterW.x) + (foot.z - playerCenterW.z) * (foot.z - playerCenterW.z)
+              < (1.6 * city.cityScale) * (1.6 * city.cityScale);
+            if (hitW) {
+              if (!city.invincible) {
+                city.died = true;
+                city.player._body.scaling.y = 0.12;
+                city.player._head.scaling.y = 0.1;
+                cityStatus("被巨人踩到了！点“重开”再来一次");
+              } else if (nowAbs - city.lastHit > 2.0) {
+                city.lastHit = nowAbs;
+                var away = new Vector3(playerCenterW.x - foot.x, 0, playerCenterW.z - foot.z);
+                if (away.lengthSquared() < 0.0001) away.set(1, 0, 0);
+                away.normalize().scaleInPlace(3);
+                city.player.position.x += away.x / city.cityScale;
+                city.player.position.z += away.z / city.cityScale;
+                city.player.rotation.x = -0.35; city.player.rotation.z = 0.25;
+                cityStatus("无敌：被震开但没死");
+              }
+            }
+            // NPC 踩扁
+            for (var k = 0; k < city.npcs.length; ++k) {
+              var np = city.npcs[k];
+              if (np.flattened) continue;
+              var nxW = np.root.position.x * city.cityScale, nzW = np.root.position.z * city.cityScale;
+              var ddx = foot.x - nxW, ddz = foot.z - nzW;
+              if (ddx * ddx + ddz * ddz < (1.4 * city.cityScale) * (1.4 * city.cityScale)) {
+                np.flattened = true; np.root._body.scaling.y = 0.08;
+              }
+            }
+          }
+          if (city.stompT >= 0.4) { city.state = "cooldown"; city.cooldown = 1.0; city.stompT = 0; city.giantRoot.position.y = 0; }
+        } else if (city.state === "cooldown") {
+          city.cooldown -= dt;
+          if (city.cooldown <= 0) city.state = "chase";
+        } else if (city.state === "windup") {
+          city.windupT += dt;
+          city.giantRoot.rotation.z = -0.08 * city.footSide;
+          city.giantRoot.position.y = 0.05;
+          if (city.windupT >= 0.8) { city.state = "stomp"; city.stompT = 0; city.giantRoot.rotation.z = 0; }
+        } else {
+          if (distL < 7.5) { city.state = "windup"; city.windupT = 0; city.footSide = Math.random() > 0.5 ? 1 : -1; }
+          else {
+            var dirW = new Vector3(pl.x * city.cityScale - city.giantRoot.position.x, 0, pl.z * city.cityScale - city.giantRoot.position.z);
+            var len = dirW.length();
+            if (len > 0.001) {
+              dirW.scaleInPlace(1 / len);
+              var step = giantSpeed * dt;
+              var nextX = city.giantRoot.position.x + dirW.x * step;
+              var nextZ = city.giantRoot.position.z + dirW.z * step;
+              var glNextX = nextX / city.cityScale, glNextZ = nextZ / city.cityScale;
+              if (!cityGiantAvoid(glNextX, glNextZ)) {
+                city.giantRoot.position.x = nextX; city.giantRoot.position.z = nextZ;
+              } else {
+                // 简单绕障
+                var angTmp = city.giantRoot.rotation.y + 0.6;
+                var altF = new Vector3(Math.sin(angTmp), 0, Math.cos(angTmp));
+                var altX = city.giantRoot.position.x + altF.x * step, altZ = city.giantRoot.position.z + altF.z * step;
+                if (!cityGiantAvoid(altX / city.cityScale, altZ / city.cityScale)) {
+                  city.giantRoot.position.x = altX; city.giantRoot.position.z = altZ;
+                } else {
+                  city.giantRoot.position.x += dirW.x * step * 0.6; city.giantRoot.position.z += dirW.z * step * 0.6;
+                }
+              }
+              var targetYaw = Math.atan2(dirW.x, dirW.z);
+              var yawDiff = targetYaw - city.giantRoot.rotation.y;
+              while (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+              while (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+              city.giantRoot.rotation.y += yawDiff * Math.min(1, dt * 4);
+              city.giantRoot.position.y = 0.16 + Math.sin(city.elapsed * 7) * 0.05;
+              city.giantRoot.rotation.z = Math.sin(city.elapsed * 7) * 0.04;
+              // 可选程序步态：腿骨交替摆动（无该骨时自动跳过）
+              try {
+                if (city._boneCache) {
+                  var ph = city.elapsed * 8;
+                  var swingA = Math.sin(ph) * 0.35, swingB = Math.sin(ph + Math.PI) * 0.35;
+                  var axisX = new Vector3(1, 0, 0);
+                  var lt = city._boneCache['左足'], rt = city._boneCache['右足'];
+                  var ls = city._boneCache['左ひざ'], rs = city._boneCache['右ひざ'];
+                  if (lt && lt.linkedBone.rotationQuaternion) lt.linkedBone.rotationQuaternion.copyFrom(Quaternion.RotationAxis(axisX, swingA));
+                  if (rt && rt.linkedBone.rotationQuaternion) rt.linkedBone.rotationQuaternion.copyFrom(Quaternion.RotationAxis(axisX, swingB));
+                  if (ls && ls.linkedBone.rotationQuaternion) ls.linkedBone.rotationQuaternion.copyFrom(Quaternion.RotationAxis(axisX, -Math.max(0, -Math.sin(ph)) * 0.4));
+                  if (rs && rs.linkedBone.rotationQuaternion) rs.linkedBone.rotationQuaternion.copyFrom(Quaternion.RotationAxis(axisX, -Math.max(0, Math.sin(ph)) * 0.4));
+                }
+              } catch (eBuild) {}
+            }
+          }
+        }
+      }
+
+      // 相机
+      if (city.cam) {
+        var focus = cityPlayerWorld();
+        focus.y = 0.4;
+        city.cam.target = focus;
+        if (city.observe) {
+          city.cam.alpha = city.giantRoot.rotation.y + Math.PI / 2;
+          city.cam.beta = 0.8;
+          city.cam.radius = 5;
+        } else {
+          var pyaw = city.player.rotation.y;
+          city.cam.alpha = pyaw - Math.PI / 2;
+          city.cam.beta = 1.05;
+          city.cam.radius = 3.2;
+        }
+      }
+
+      // 完成判定
+      if (city.elapsed >= city.timeLimit && !city.died) cityStatus("坚持住了！存活 " + city.timeLimit + " 秒");
+    }
+
+    window.__mmdCity.enter = cityEnter;
+    window.__mmdCity.exit = cityExit;
+    window.__mmdCity.isActive = function () { return city.active; };
+    window.__mmdCity.setInput = function (o) {
+      if (!city.active) return;
+      if (o && typeof o.moveX === "number") city.input.moveX = o.moveX;
+      if (o && typeof o.moveZ === "number") city.input.moveZ = o.moveZ;
+      if (o && typeof o.sprint === "boolean") city.input.sprint = o.sprint;
+      if (o && o.dodge) {
+        // 简单短闪：向后弹开
+        var aw = cityPlayerWorld(), gl2 = cityGiantLocal();
+        var away = new Vector3(aw.x - gl2.x, 0, aw.z - gl2.z);
+        if (away.lengthSquared() < 0.0001) away.set(1, 0, 0);
+        away.normalize().scaleInPlace(3);
+        city.player.position.x += away.x / city.cityScale;
+        city.player.position.z += away.z / city.cityScale;
+      }
+    };
+    window.__mmdCity.setInvincible = function (on) { city.invincible = !!on; return city.invincible; };
+    window.__mmdCity.setObserve = function (on) { city.observe = !!on; return city.observe; };
+    window.__mmdCity.setCityScale = function (s) {
+      if (typeof s === 'number' && isFinite(s) && s > 0.02 && s < 1) city.cityScale = s;
+      return city.cityScale;
+    };
+    window.__mmdCity.getCityScale = function () { return city.cityScale; };
+    window.__mmdCity.restart = cityReset;
+    window.__mmdCity.getState = function () {
+      return {
+        active: city.active, elapsed: city.elapsed, timeLimit: city.timeLimit,
+        died: city.died, invincible: city.invincible, state: city.state,
+        observe: city.observe
+      };
+    };
+    window.addEventListener("keydown", function (e) {
+      if (!city.active) return;
+      var k = e.key.toLowerCase();
+      if (k === "w" || k === "arrowup") city.keys.up = true;
+      if (k === "s" || k === "arrowdown") city.keys.down = true;
+      if (k === "a" || k === "arrowleft") city.keys.left = true;
+      if (k === "d" || k === "arrowright") city.keys.right = true;
+      if (k === "shift") city.keys.sprint = true;
+      if (k === " " || k === "空格") { e.preventDefault(); try { window.__mmdCity.setInput({ dodge: true }); } catch (e2) {} }
+      if (k === "r") cityReset();
+    });
+    window.addEventListener("keyup", function (e) {
+      if (!city.active) return;
+      var k = e.key.toLowerCase();
+      if (k === "w" || k === "arrowup") city.keys.up = false;
+      if (k === "s" || k === "arrowdown") city.keys.down = false;
+      if (k === "a" || k === "arrowleft") city.keys.left = false;
+      if (k === "d" || k === "arrowright") city.keys.right = false;
+      if (k === "shift") city.keys.sprint = false;
+    });
+
+    // ============================================================================
+    // 模块 B：手办式全身摆姿
+    // ============================================================================
+    var pose = {
+      active: false, obs: null, states: {}, boneMap: {}, selected: null,
+      savedAnimHandle: null, savedUserPaused: null, savedPhys: null, savedIk: null,
+      fkMode: false
+    };
+    window.__mmdPose = {};
+
+    function poseBoneDisplay(name) {
+      var map = {
+        "全ての親": "全局/根", "センター": "中心", "腰": "腰", "上半身": "上半身", "上半身2": "上半身2", "下半身": "下半身",
+        "頭": "头", "首": "脖子", "両目": "双眼", "左目": "左眼", "右目": "右眼", "左眉": "左眉", "右眉": "右眉"
+      };
+      var label = map[name];
+      if (label) return label;
+      var n = name;
+      n = n.replace(/左/g, "左").replace(/右/g, "右");
+      n = n.replace("親指", "拇指").replace("人差指", "食指").replace("中指", "中指").replace("薬指", "无名指").replace("小指", "小指");
+      n = n.replace("つま先", "脚尖").replace("足首", "脚踝").replace("手首", "手腕");
+      n = n.replace("ひじ", "肘").replace("ひざ", "膝");
+      n = n.replace("腕", "臂").replace("肩", "肩").replace("足", "腿").replace("首", "颈");
+      return n;
+    }
+    function poseBoneGroup(name) {
+      var n = name;
+      if (/頭|首|目|眉|口|あご|顎/.test(n)) return "头颈";
+      if (/上半身|下半身|腰|センター|全ての親/.test(n)) return "躯干";
+      if (/肩|腕|ひじ|手首/.test(n)) return "上臂/手";
+      if (/親指|人差指|中指|薬指|小指|爪先|付け根|末/.test(n)) return "手指/脚趾";
+      if (/足|ひざ|趾|つま先/.test(n)) return "下肢";
+      if (/首|胸|肩/.test(n)) return "头颈/躯干";
+      return "其他";
+    }
+    function poseEnsureBoneMap() {
+      pose.boneMap = {};
+      var m = activeModel();
+      if (!m || !m.mmdModel || !m.mmdModel.runtimeBones) return;
+      var bones = m.mmdModel.runtimeBones;
+      for (var i = 0; i < bones.length; ++i) {
+        pose.boneMap[bones[i].name] = bones[i];
+      }
+    }
+    function poseApplyTick() {
+      if (!pose.active) return;
+      var m = activeModel();
+      if (!m || !m.mmdModel) return;
+      for (var name in pose.states) {
+        var b = pose.boneMap[name];
+        if (!b) continue;
+        var s = pose.states[name];
+        var q = Quaternion.FromEulerAngles(s.x * Math.PI / 180, s.y * Math.PI / 180, s.z * Math.PI / 180);
+        try {
+          if (b.linkedBone.rotationQuaternion) b.linkedBone.rotationQuaternion.copyFrom(q);
+          else b.linkedBone.setRotationQuaternion && b.linkedBone.setRotationQuaternion(q, 0);
+        } catch (e) {}
+      }
+    }
+    function poseEnter() {
+      if (pose.active) return { ok: false, error: "already active" };
+      var m = activeModel();
+      if (!m || !m.mmdModel) return { ok: false, error: "请先加载一个 PMX 模型" };
+      pose.active = true;
+      var md = m.mmdModel;
+      pose.savedAnimHandle = window.__mmd._modelAnimHandle; window.__mmd._modelAnimHandle = null;
+      pose.savedUserPaused = window.__mmd._userPaused; window.__mmd._userPaused = true;
+      try { md.setRuntimeAnimation(null); } catch (e) {}
+      pose.savedPhys = Uint8Array.from(md.rigidBodyStates); md.rigidBodyStates.fill(0);
+      pose.savedIk = Uint8Array.from(md.ikSolverStates); md.ikSolverStates.fill(0);
+      pose.states = {}; pose.selected = null;
+      if (pose.obs) { try { scene.onBeforeRenderObservable.remove(pose.obs); } catch (e) {} }
+      pose.obs = poseApplyTick;
+      scene.onBeforeRenderObservable.add(pose.obs, 0, true);
+      poseEnsureBoneMap();
+      return { ok: true, bones: Object.keys(pose.boneMap).length };
+    }
+    function poseExit() {
+      if (!pose.active) return { ok: false, error: "not active" };
+      pose.active = false;
+      try { if (pose.obs) scene.onBeforeRenderObservable.remove(pose.obs); } catch (e) {}
+      var m = activeModel();
+      var md = m && m.mmdModel;
+      if (md) {
+        try { if (pose.savedPhys) md.rigidBodyStates.set(pose.savedPhys); } catch (e) {}
+        try { if (pose.savedIk) md.ikSolverStates.set(pose.savedIk); } catch (e) {}
+        try {
+          if (pose.savedAnimHandle && md.setRuntimeAnimation) {
+            md.setRuntimeAnimation(pose.savedAnimHandle);
+            window.__mmd._modelAnimHandle = pose.savedAnimHandle;
+          } else {
+            window.__mmd._modelAnimHandle = null;
+          }
+        } catch (e) {}
+        window.__mmd._userPaused = pose.savedUserPaused;
+        window.__mmd._absT0 = undefined;
+      }
+      return { ok: true };
+    }
+    window.__mmdPose.enter = poseEnter;
+    window.__mmdPose.exit = poseExit;
+    window.__mmdPose.isActive = function () { return pose.active; };
+    window.__mmdPose.getBones = function () {
+      poseEnsureBoneMap();
+      var arr = Object.keys(pose.boneMap).sort(function (a, b) {
+        var g = poseBoneGroup(a).localeCompare(poseBoneGroup(b));
+        return g || a.localeCompare(b);
+      }).map(function (n) {
+        return { name: n, label: poseBoneDisplay(n), group: poseBoneGroup(n) };
+      });
+      return { bones: arr, selected: pose.selected, fkMode: pose.fkMode };
+    };
+    window.__mmdPose.select = function (name) {
+      if (!pose.boneMap[name]) poseEnsureBoneMap();
+      if (pose.boneMap[name]) pose.selected = name;
+      if (!pose.states[name]) pose.states[name] = { x: 0, y: 0, z: 0 };
+      return { ok: true, selected: name, state: pose.states[name] || { x: 0, y: 0, z: 0 } };
+    };
+    window.__mmdPose.getState = function (name) {
+      name = name || pose.selected;
+      return name ? (pose.states[name] || { x: 0, y: 0, z: 0 }) : null;
+    };
+    window.__mmdPose.rotate = function (name, opts) {
+      if (!name) name = pose.selected;
+      if (!name) return { ok: false, error: "no bone selected" };
+      poseEnsureBoneMap();
+      if (!pose.boneMap[name]) return { ok: false, error: "bone not found" };
+      var s = pose.states[name] || (pose.states[name] = { x: 0, y: 0, z: 0 });
+      if (opts && typeof opts.x === "number") s.x = Math.max(-180, Math.min(180, opts.x));
+      if (opts && typeof opts.y === "number") s.y = Math.max(-180, Math.min(180, opts.y));
+      if (opts && typeof opts.z === "number") s.z = Math.max(-180, Math.min(180, opts.z));
+      pose.selected = name;
+      poseApplyTick();
+      return { ok: true, name: name, state: s };
+    };
+    window.__mmdPose.resetBone = function (name) {
+      name = name || pose.selected;
+      if (!name) return { ok: false, error: "no bone" };
+      if (pose.states[name]) { delete pose.states[name]; }
+      var b = pose.boneMap[name];
+      if (b) {
+        try {
+          if (b.linkedBone.setRotationQuaternion) {
+            b.linkedBone.setRotationQuaternion(Quaternion.Identity(), 0);
+            b.linkedBone.position.copyFrom(b.linkedBone.getRestMatrix().getTranslation());
+          }
+        } catch (e) {}
+      }
+      return { ok: true, name: name };
+    };
+    window.__mmdPose.resetAll = function () {
+      var m = activeModel();
+      if (m && m.mmdModel) { try { m.mmdModel.setRuntimeAnimation(null); } catch (e) {} }
+      pose.states = {};
+      var names = Object.keys(pose.boneMap);
+      for (var i = 0; i < names.length; ++i) {
+        var b = pose.boneMap[names[i]];
+        try { if (b && b.linkedBone.setRotationQuaternion) b.linkedBone.setRotationQuaternion(Quaternion.Identity(), 0); } catch (e) {}
+      }
+      return { ok: true };
+    };
+    window.__mmdPose.mirror = function () {
+      var target = pose.selected || null;
+      var out = [];
+      for (var name in pose.states) {
+        var mirroredName = name.replace(/左/g, "右").replace(/右/g, "左");
+        if (mirroredName === name) continue;
+        if (!pose.boneMap[mirroredName]) continue;
+        var s = pose.states[name];
+        var m = { x: s.x, y: -s.y, z: -s.z };
+        pose.states[mirroredName] = { x: m.x, y: m.y, z: m.z };
+        out.push(mirroredName);
+      }
+      poseApplyTick();
+      return { ok: true, applied: out };
+    };
+    window.__mmdPose.setFkMode = function (on) { pose.fkMode = !!on; return pose.fkMode; };
+    window.__mmdPose.savePose = function (slot) {
+      try {
+        var key = "mmd_pose_" + slot;
+        localStorage.setItem(key, JSON.stringify(pose.states));
+        return { ok: true, slot: slot };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    };
+    window.__mmdPose.loadPose = function (slot) {
+      try {
+        var raw = localStorage.getItem("mmd_pose_" + slot);
+        if (!raw) return { ok: false, error: "empty slot" };
+        var data = JSON.parse(raw);
+        poseEnsureBoneMap();
+        pose.states = {};
+        for (var name in data) {
+          if (pose.boneMap[name] !== undefined) pose.states[name] = data[name];
+        }
+        poseApplyTick();
+        return { ok: true, bones: Object.keys(pose.states).length };
+      } catch (e) { return { ok: false, error: String(e) }; }
+    };
+    window.__mmdPose.listPoses = function () {
+      var r = [];
+      for (var i = 1; i <= 6; ++i) {
+        try { if (localStorage.getItem("mmd_pose_" + i)) r.push(i); } catch (e) {}
+      }
+      return r;
+    };
 
 
     // 首次不再内置加载默认模型 —— 等用户在文件库选择模型(不内置模型进 APK)。

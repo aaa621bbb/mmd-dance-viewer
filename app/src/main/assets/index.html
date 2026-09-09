@@ -220,6 +220,54 @@
       background: #bbb; transition: .2s; }
     .switch input:checked + .slider { background: #2fbf71; }
     .switch input:checked + .slider:before { transform: translateX(20px); background: #fff; }
+    /* ===== 巨人踩城 UI ===== */
+    #cityUI { position: fixed; inset: 0; z-index: 92; display: none; background: transparent; }
+    #cityUI.show { display: block; }
+    #cityTop { position: fixed; top: 10px; left: 10px; right: 10px; z-index: 93; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    #cityTop .ctBt { padding: 8px 10px; border: none; border-radius: 10px; color: #fff; font-size: 12px; font-weight: 700;
+      cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,.35); background: rgba(40,46,58,0.92); }
+    #cityExitBt { background: rgba(200,60,60,0.95); }
+    #cityTimer { color: #fff; font-size: 13px; font-variant-numeric: tabular-nums; background: rgba(18,20,26,.8);
+      padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); }
+    #cityMsg { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 93; color: #fff; text-align: center;
+      font-size: 13px; background: rgba(18,20,26,.75); padding: 8px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.16); }
+    #cityJoystick { position: fixed; left: 34px; bottom: 46px; width: 120px; height: 120px; z-index: 93;
+      background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.3); border-radius: 50%; }
+    #cityJoystick .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px;
+      background: rgba(255,255,255,.4); border-radius: 50%; }
+    #cityDodgeBt { position: fixed; right: 20px; bottom: 52px; z-index: 93; width: 94px; padding: 14px 0; border: none; border-radius: 14px;
+      background: rgba(59,130,246,.92); color: #fff; font-weight: 800; font-size: 13px; box-shadow: 0 3px 12px rgba(59,130,246,.45); }
+    #cityObserveBt { position: fixed; right: 20px; bottom: 120px; z-index: 93; width: 94px; padding: 9px 0; border: 1px solid #888;
+      border-radius: 10px; background: rgba(40,46,58,.9); color: #fff; font-size: 12px; }
+    /* ===== 手办摆姿 UI ===== */
+    #poseUI { position: fixed; inset: 0; z-index: 92; display: none; background: rgba(10,12,16,.96); color: #fff;
+      flex-direction: column; }
+    #poseUI.show { display: flex; }
+    #poseTop { display: flex; align-items: center; gap: 6px; padding: 8px 10px; background: #1b1e26; border-bottom: 1px solid #333; flex-wrap: wrap; }
+    #poseSearch { flex: 1; min-width: 90px; padding: 8px; border-radius: 8px; border: 1px solid #444; background: #14161c; color: #eee; font-size: 12px; }
+    #poseTop .ptBt { padding: 8px 10px; border: 1px solid #444; border-radius: 8px; background: #242936; color: #eee; font-size: 12px; cursor: pointer; }
+    #poseSlot { padding: 7px; border-radius: 8px; border: 1px solid #444; background: #14161c; color: #eee; font-size: 12px; }
+    #poseBody { display: flex; flex: 1; overflow: hidden; }
+    #poseBones { flex: 1.1; overflow-y: auto; padding: 8px; border-right: 1px solid #333; }
+    #poseCtrl { flex: 1; overflow-y: auto; padding: 8px 10px; }
+    .poseGrp { margin-bottom: 6px; }
+    .poseGrpTitle { font-size: 12px; font-weight: 700; color: #8ab4f8; padding: 4px 2px; cursor: pointer; }
+    .poseGrpTitle::after { content: ' ▾'; }
+    .poseGrp.collapsed .poseGrpTitle::after { content: ' ▸'; }
+    .poseGrp.collapsed .poseGrpItems { display: none; }
+    .poseGrpItems { display: flex; flex-wrap: wrap; gap: 5px; padding: 2px 0 6px; }
+    .poseBoneBt { padding: 6px 8px; border: 1px solid #444; border-radius: 8px; background: #242936; color: #ddd; font-size: 11px; cursor: pointer; }
+    .poseBoneBt.sel { background: #2f6fed; border-color: #6da3ff; color: #fff; }
+    #poseSelectedName { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+    #poseDial { width: 150px; height: 150px; border-radius: 50%; border: 3px solid #7aa2ff; margin: 10px auto 6px; position: relative; touch-action: none; background: radial-gradient(circle, rgba(122,162,255,.08), rgba(122,162,255,.02)); }
+    #poseDialHandle { position: absolute; width: 34px; height: 34px; border: 2px solid #fff; border-radius: 50%; background: #2f6fed; top: 58px; left: 58px; margin: -0px; }
+    #poseDialTip { text-align: center; font-size: 10px; color: #9bb; margin-bottom: 6px; }
+    .poseSliderRow { margin: 8px 0; }
+    .poseSliderRow label { display: flex; justify-content: space-between; font-size: 11px; color: #aac; }
+    .poseSliderRow input { width: 100%; accent-color: #7aa2ff; margin-top: 3px; }
+    .poseCtrlBtns { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .poseCtrlBtns .ptBt { flex: 1; }
+    .poseSearchEmpty { padding: 10px; color: #888; font-size: 12px; }
   </style>
 </head>
 <body>
@@ -260,6 +308,8 @@
       <button id="fileBtn">文件库</button>
       <button id="settingsBtn">设置</button>
       <button id="exploreBtn" title="第一人称自由探索">探索</button>
+      <button id="cityBtn" title="巨人踩城玩法">踩城</button>
+      <button id="poseBtn" title="手办式全身摆姿">摆姿</button>
     </div>
     <button id="orienBtn" class="tbIcon" title="横/竖屏">🔄</button>
   </div>
@@ -285,6 +335,47 @@
       <input type="range" id="expSpeedRange" min="0.01" max="3" step="0.01" value="0.03">
       <span class="lbl" id="expSensLbl">视角 1.0x</span>
       <input type="range" id="expSensRange" min="0.2" max="4" step="0.1" value="1.0">
+    </div>
+  </div>
+  <!-- 巨人踩城 UI -->
+  <div id="cityUI">
+    <div id="cityTop">
+      <button id="cityExitBt" class="ctBt">🚪 退出</button>
+      <button id="cityRestartBt" class="ctBt">🔄 重开</button>
+      <button id="cityObserveBt" class="ctBt">👁 远观</button>
+      <label style="color:#fff;font-size:12px;display:flex;align-items:center;gap:4px"><input type="checkbox" id="cityInvChk" style="width:16px;height:16px"> 无敌</label>
+      <span id="cityTimer">0.0s / 60s</span>
+    </div>
+    <div id="cityMsg">躲避巨人的脚步，存活 60 秒</div>
+    <div id="cityJoystick"><div class="knob"></div><div class="lbl" style="position:absolute;left:0;right:0;bottom:-20px;text-align:center;color:#8ee;font-size:10px">移动</div></div>
+    <button id="cityDodgeBt">💨 翻滚</button>
+  </div>
+  <!-- 手办摆姿 UI -->
+  <div id="poseUI">
+    <div id="poseTop">
+      <button id="poseExitBt" class="ptBt">🚪 退出</button>
+      <input id="poseSearch" placeholder="搜索骨骼(中文/日文)..." />
+      <select id="poseSlot"><option value="1">槽位1</option><option value="2">槽位2</option><option value="3">槽位3</option><option value="4">槽位4</option><option value="5">槽位5</option><option value="6">槽位6</option></select>
+      <button id="poseSaveBt" class="ptBt">💾 保存</button>
+      <button id="poseLoadBt" class="ptBt">📂 载入</button>
+      <button id="poseMirrorBt" class="ptBt">🪞 镜像</button>
+      <button id="poseRestartBt" class="ptBt">♻️ 全身复位</button>
+    </div>
+    <div id="poseBody">
+      <div id="poseBones"></div>
+      <div id="poseCtrl">
+        <div id="poseSelectedName">未选择骨骼</div>
+        <div id="poseDial"><div id="poseDialHandle"></div></div>
+        <div id="poseDialTip">拖动圆盘：水平=偏航Yaw · 垂直=俯仰Pitch</div>
+        <div class="poseSliderRow"><label><span>Pitch 俯仰</span><span id="posePitchVal">0</span></label><input type="range" id="posePitch" min="-180" max="180" step="0.5" value="0"></div>
+        <div class="poseSliderRow"><label><span>Yaw 偏航</span><span id="poseYawVal">0</span></label><input type="range" id="poseYaw" min="-180" max="180" step="0.5" value="0"></div>
+        <div class="poseSliderRow"><label><span>Roll 滚转</span><span id="poseRollVal">0</span></label><input type="range" id="poseRoll" min="-180" max="180" step="0.5" value="0"></div>
+        <div class="poseCtrlBtns">
+          <button id="poseResetBt" class="ptBt">↩️ 复位本骨</button>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:#ccd"><input type="checkbox" id="poseFkChk" style="width:16px;height:16px"> FK 联动后代</label>
+        </div>
+        <div style="font-size:11px;color:#889;margin-top:10px;line-height:1.6">提示：选中骨骼后用滑杆精确到0.5°，拖动圆盘快速调节。左手姿势可一键镜像到右侧。</div>
+      </div>
     </div>
   </div>
   <div id="exportInfo"></div>
@@ -1302,6 +1393,267 @@
       expLookZone.addEventListener('touchend', endLook);
       expLookZone.addEventListener('touchcancel', endLook);
     })();
+
+    // ======= 巨人踩城 + 手办摆姿 UI =======
+    var cityUI = document.getElementById('cityUI');
+    var cityExitBt = document.getElementById('cityExitBt');
+    var cityRestartBt = document.getElementById('cityRestartBt');
+    var cityObserveBt = document.getElementById('cityObserveBt');
+    var cityInvChk = document.getElementById('cityInvChk');
+    var cityTimer = document.getElementById('cityTimer');
+    var cityMsg = document.getElementById('cityMsg');
+    var cityJoystick = document.getElementById('cityJoystick');
+    var cityKnob = cityJoystick.querySelector('.knob');
+    var cityDodgeBt = document.getElementById('cityDodgeBt');
+    var cityInput = { moveX: 0, moveZ: 0, sprint: false };
+    var cityHideEls = ['topBar','pbar','exportBtn','status','mposWrap','exportInfo','aspectBar','progressWrap'];
+    function cityHideNormalUI(hide) {
+      for (var i = 0; i < cityHideEls.length; i++) {
+        var el = document.getElementById(cityHideEls[i]); if (!el) continue;
+        if (cityHideEls[i] === 'aspectBar') { if (hide) { el.style.display = 'none'; } else { /* 恢复由 showAspectBar 控制 */ } }
+        else el.style.display = hide ? 'none' : '';
+      }
+    }
+    function cityReady() { return window.__mmdCity && window.__mmdCity.enter; }
+    function cityPoll(ok) {
+      var n = 0; var t = setInterval(function () {
+        if (cityReady()) { clearInterval(t); ok(); }
+        else if (++n > 40) { clearInterval(t); if (status) status.textContent = '[踩城] 引擎未就绪，请稍后重试'; }
+      }, 100);
+    }
+    function cityEnterUI() {
+      if (!cityReady()) { cityPoll(cityEnterUI); return; }
+      // 关掉其他面板
+      try { if (settingsPanel && settingsPanel.classList.contains('show')) closeSettings(); } catch (e) {}
+      try { if (panel && panel.classList.contains('open')) closePanel(); } catch (e) {}
+      // 若在探索模式, 先彻底退出探索UI
+      try { if (exploreUI.classList.contains('show')) exitExploreUI(); } catch (e) {}
+      try { if (window.__mmd && window.__mmd.isExploreActive && window.__mmd.isExploreActive()) window.__mmd.exitExplore(); } catch (e) {}
+      var r = window.__mmdCity.enter();
+      if (!r || !r.ok) { status.textContent = '[踩城] ' + (r && r.error || '无法进入'); return; }
+      cityUI.classList.add('show');
+      cityHideNormalUI(true);
+      cityMsg.textContent = '躲避巨人的脚步，存活 60 秒';
+      cityTimer.textContent = '0.0s / 60s';
+      cityInvChk.checked = !!window.__mmdCity.getState().invincible;
+      cityObserveBt.textContent = '👁 远观';
+      refreshCityTimer();
+      if (!cityTimer._int) cityTimer._int = setInterval(refreshCityTimer, 200);
+      if (!cityInput._tick) cityInput._tick = setInterval(function () {
+        if (window.__mmdCity && window.__mmdCity.setInput) window.__mmdCity.setInput(cityInput);
+      }, 16);
+    }
+    function cityExitUI() {
+      if (window.__mmdCity && window.__mmdCity.exit) try { window.__mmdCity.exit(); } catch (e) {}
+      cityUI.classList.remove('show');
+      cityHideNormalUI(false);
+      cityInput.moveX = 0; cityInput.moveZ = 0;
+      if (cityTimer._int) { clearInterval(cityTimer._int); cityTimer._int = null; }
+      if (cityInput._tick) { clearInterval(cityInput._tick); cityInput._tick = null; }
+      status.textContent = '[踩城] 已退出';
+      status.style.display = '';
+    }
+    function refreshCityTimer() {
+      if (!window.__mmdCity || !window.__mmdCity.getState) return;
+      var s = window.__mmdCity.getState();
+      cityTimer.textContent = s.elapsed.toFixed(1) + 's / ' + s.timeLimit + 's';
+      if (s.observe) cityObserveBt.textContent = '🔭 跟随';
+      else cityObserveBt.textContent = '👁 远观';
+      if (s.died) cityMsg.textContent = '被踩到了！点“重开”再来一次';
+      else if (s.elapsed >= s.timeLimit && !s.died) cityMsg.textContent = '坚持住了！存活 ' + s.timeLimit + ' 秒';
+      else cityMsg.textContent = '躲避巨人的脚步，存活 ' + s.timeLimit + ' 秒';
+    }
+    document.getElementById('cityBtn').addEventListener('click', cityEnterUI);
+    cityExitBt.addEventListener('click', cityExitUI);
+    cityRestartBt.addEventListener('click', function () { if (window.__mmdCity && window.__mmdCity.restart) window.__mmdCity.restart(); cityMsg.textContent = '已重开'; });
+    cityObserveBt.addEventListener('click', function () {
+      if (!window.__mmdCity || !window.__mmdCity.setObserve) return;
+      var cur = window.__mmdCity.getState().observe;
+      window.__mmdCity.setObserve(!cur);
+      refreshCityTimer();
+    });
+    cityInvChk.addEventListener('change', function () { if (window.__mmdCity && window.__mmdCity.setInvincible) window.__mmdCity.setInvincible(cityInvChk.checked); });
+    cityDodgeBt.addEventListener('click', function () { if (window.__mmdCity && window.__mmdCity.setInput) window.__mmdCity.setInput({ dodge: true }); });
+    // 踩城摇杆
+    (function () {
+      var sid = null, base = null;
+      function move(x, y) {
+        var cx = base.left + base.width / 2, cy = base.top + base.height / 2;
+        var dx = x - cx, dy = y - cy, r = Math.sqrt(dx * dx + dy * dy) || 1, maxR = 55;
+        if (r > maxR) { dx *= maxR / r; dy *= maxR / r; r = maxR; }
+        cityKnob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+        var nx = dx / maxR, ny = dy / maxR;
+        cityInput.moveX = nx; cityInput.moveZ = -ny;
+        cityInput.sprint = (r / maxR) > 0.88;
+      }
+      cityJoystick.addEventListener('touchstart', function (e) { var t = e.changedTouches[0]; sid = t.identifier; base = cityJoystick.getBoundingClientRect(); move(t.clientX, t.clientY); e.preventDefault(); }, { passive: false });
+      cityJoystick.addEventListener('touchmove', function (e) { for (var i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === sid) { move(e.touches[i].clientX, e.touches[i].clientY); break; } e.preventDefault(); }, { passive: false });
+      function end(e) { var keep = false; for (var i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === sid) keep = true; if (!keep) { sid = null; cityInput.moveX = 0; cityInput.moveZ = 0; cityInput.sprint = false; cityKnob.style.transform = 'translate(0,0)'; } }
+      cityJoystick.addEventListener('touchend', end); cityJoystick.addEventListener('touchcancel', end);
+    })();
+
+    // ===== 手办摆姿 =====
+    var poseUI = document.getElementById('poseUI');
+    var poseSearch = document.getElementById('poseSearch');
+    var poseBonesEl = document.getElementById('poseBones');
+    var poseSelectedName = document.getElementById('poseSelectedName');
+    var poseDial = document.getElementById('poseDial');
+    var poseDialHandle = document.getElementById('poseDialHandle');
+    var posePitch = document.getElementById('posePitch');
+    var poseYaw = document.getElementById('poseYaw');
+    var poseRoll = document.getElementById('poseRoll');
+    var posePitchVal = document.getElementById('posePitchVal');
+    var poseYawVal = document.getElementById('poseYawVal');
+    var poseRollVal = document.getElementById('poseRollVal');
+    var poseSlot = document.getElementById('poseSlot');
+    var poseBonesCache = [];
+    var poseDialEuler = { x: 0, y: 0, z: 0 };
+    function poseReady() { return window.__mmdPose && window.__mmdPose.enter; }
+    function posePoll(ok) {
+      var n = 0; var t = setInterval(function () {
+        if (poseReady()) { clearInterval(t); ok(); }
+        else if (++n > 40) { clearInterval(t); if (status) status.textContent = '[摆姿] 引擎未就绪，请稍后重试'; }
+      }, 100);
+    }
+    function poseEscapeHtml(s) {
+      return String(s).replace(/[&<>"]/g, function (c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; });
+    }
+    function poseBuildBones(filter) {
+      if (!window.__mmdPose || !window.__mmdPose.getBones) return;
+      var data = window.__mmdPose.getBones();
+      poseBonesCache = data.bones || [];
+      var q = (filter || '').replace(/\s+/g, '').toLowerCase();
+      var groups = {};
+      poseBonesCache.forEach(function (b) {
+        var hay = (b.name + b.label + b.group).toLowerCase();
+        if (q && hay.indexOf(q) < 0) return;
+        (groups[b.group] = groups[b.group] || []).push(b);
+      });
+      poseBonesEl.innerHTML = '';
+      var order = ['头颈','躯干','上臂/手','手指/脚趾','下肢','其他'];
+      for (var i = 0; i < order.length; i++) {
+        var gn = order[i]; if (!groups[gn] || !groups[gn].length) continue;
+        var gDiv = document.createElement('div'); gDiv.className = 'poseGrp';
+        gDiv.innerHTML = '<div class="poseGrpTitle">' + gn + ' (' + groups[gn].length + ')</div>';
+        var items = document.createElement('div'); items.className = 'poseGrpItems';
+        groups[gn].forEach(function (b) {
+          var bt = document.createElement('button'); bt.className = 'poseBoneBt';
+          bt.textContent = b.label;
+          bt.setAttribute('data-name', b.name); bt.title = b.name;
+          bt.addEventListener('click', function () { poseSelectBone(b.name); });
+          items.appendChild(bt);
+        });
+        gDiv.appendChild(items); poseBonesEl.appendChild(gDiv);
+      }
+      if (!poseBonesEl.querySelector('.poseBoneBt')) poseBonesEl.innerHTML = '<div class="poseSearchEmpty">没有匹配的骨骼</div>';
+    }
+    function poseRefreshSelected() {
+      if (!poseSelectedName || !window.__mmdPose) return;
+      var sel = poseSelectedName.getAttribute('data-name');
+      var st = sel ? window.__mmdPose.getState(sel) : null;
+      poseSelectedName.textContent = sel ? (poseBoneDisplayLabel(sel) + ' · ' + sel) : '未选择骨骼';
+      if (st) {
+        posePitch.value = st.x; poseYaw.value = st.y; poseRoll.value = st.z;
+        posePitchVal.textContent = st.x; poseYawVal.textContent = st.y; poseRollVal.textContent = st.z;
+        poseDialEuler = { x: st.x, y: st.y, z: st.z };
+        updatePoseDial();
+      }
+      // 高亮当前骨
+      var items = poseBonesEl.querySelectorAll('.poseBoneBt');
+      items.forEach(function (b) { b.classList.toggle('sel', b.getAttribute('data-name') === sel); });
+    }
+    function poseBoneDisplayLabel(name) {
+      var map = { '左腕':'左臂','右腕':'右臂','左手首':'左手腕','右手首':'右手腕', '左ひじ':'左肘','右ひじ':'右肘', '左足':'左腿','右足':'右腿', '左ひざ':'左膝','右ひざ':'右膝', '左足首':'左脚踝','右足首':'右脚踝', '左つま先':'左脚尖','右つま先':'右脚尖' };
+      if (map[name]) return map[name];
+      var n = name; n = n.replace("親指","拇指").replace("人差指","食指").replace("中指","中指").replace("薬指","无名指").replace("小指","小指").replace("足首","脚踝").replace("手首","手腕").replace("ひじ","肘").replace("ひざ","膝").replace("つま先","脚尖");
+      return n;
+    }
+    function poseSelectBone(name) {
+      if (!window.__mmdPose) return;
+      var r = window.__mmdPose.select(name);
+      if (!r || !r.ok) return;
+      poseSelectedName.setAttribute('data-name', name);
+      poseRefreshSelected();
+    }
+    function poseApplyEuler() {
+      var sel = poseSelectedName.getAttribute('data-name');
+      if (!sel || !window.__mmdPose) return;
+      window.__mmdPose.rotate(sel, { x: +posePitch.value, y: +poseYaw.value, z: +poseRoll.value });
+      posePitchVal.textContent = posePitch.value;
+      poseYawVal.textContent = poseYaw.value;
+      poseRollVal.textContent = poseRoll.value;
+      poseDialEuler = { x: +posePitch.value, y: +poseYaw.value, z: +poseRoll.value };
+      updatePoseDial();
+    }
+    function updatePoseDial() {
+      var r = poseDial.getBoundingClientRect();
+      var cx = r.width / 2, cy = r.height / 2;
+      var rad = Math.max(8, Math.min(48, cx * 0.62));
+      var yaw = poseDialEuler.y / 180 * Math.PI;
+      var pitch = poseDialEuler.x / 180 * Math.PI;
+      var x = Math.sin(yaw) * rad, y2 = Math.cos(pitch) * rad;
+      poseDialHandle.style.left = (cx - 17 + x) + 'px';
+      poseDialHandle.style.top = (cy - 17 - (y2 - rad) * 0.9) + 'px';
+    }
+    (function () {
+      var active = false, sx = 0, sy = 0, baseE = null;
+      function down(e) { active = true; sx = e.clientX; sy = e.clientY; baseE = { x: poseDialEuler.x, y: poseDialEuler.y }; if (poseDial.setPointerCapture) { e.preventDefault(); return; } e.preventDefault(); }
+      function move(e) {
+        if (!active) return;
+        var dx = e.clientX - sx, dy = e.clientY - sy;
+        poseYaw.value = Math.max(-180, Math.min(180, baseE.y + dx));
+        posePitch.value = Math.max(-180, Math.min(180, baseE.x + dy));
+        poseApplyEuler();
+        e.preventDefault();
+      }
+      function up(e) { active = false; }
+      poseDial.addEventListener('touchstart', down, { passive: false });
+      poseDial.addEventListener('touchmove', move, { passive: false });
+      poseDial.addEventListener('touchend', up);
+      poseDial.addEventListener('mousedown', down);
+      poseDial.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', up);
+    })();
+    poseSearch.addEventListener('input', function () { poseBuildBones(poseSearch.value); poseRefreshSelected(); });
+    posePitch.addEventListener('input', poseApplyEuler);
+    poseYaw.addEventListener('input', poseApplyEuler);
+    poseRoll.addEventListener('input', poseApplyEuler);
+    function poseResetCurrent() {
+      var sel = poseSelectedName.getAttribute('data-name');
+      if (sel && window.__mmdPose) { window.__mmdPose.resetBone(sel); posePitch.value = 0; poseYaw.value = 0; poseRoll.value = 0; poseApplyEuler(); }
+    }
+    function poseEnterUI() {
+      if (!poseReady()) { posePoll(poseEnterUI); return; }
+      try { if (settingsPanel && settingsPanel.classList.contains('show')) closeSettings(); } catch (e) {}
+      try { if (panel && panel.classList.contains('open')) closePanel(); } catch (e) {}
+      try { if (exploreUI.classList.contains('show')) exitExploreUI(); } catch (e) {}
+      try { if (window.__mmd && window.__mmd.isExploreActive && window.__mmd.isExploreActive()) window.__mmd.exitExplore(); } catch (e) {}
+      var r = window.__mmdPose.enter();
+      if (!r || !r.ok) { status.textContent = '[摆姿] ' + (r && r.error || '无法进入'); return; }
+      poseUI.classList.add('show');
+      var needHide = ['topBar','pbar','exportBtn','status','mposWrap','exportInfo','aspectBar','progressWrap'];
+      for (var i = 0; i < needHide.length; i++) { var el = document.getElementById(needHide[i]); if (el) el.style.display = 'none'; }
+      poseSearch.value = ''; poseBuildBones('');
+      poseSelectedName.setAttribute('data-name', '');
+      poseRefreshSelected();
+    }
+    function poseExitUI() {
+      if (window.__mmdPose && window.__mmdPose.exit) try { window.__mmdPose.exit(); } catch (e) {}
+      poseUI.classList.remove('show');
+      var needHide = ['topBar','pbar','exportBtn','status','mposWrap','exportInfo','aspectBar','progressWrap'];
+      for (var i = 0; i < needHide.length; i++) { var el = document.getElementById(needHide[i]); if (el) el.style.display = ''; }
+      status.textContent = '[摆姿] 已退出';
+      status.style.display = '';
+    }
+    document.getElementById('poseBtn').addEventListener('click', poseEnterUI);
+    document.getElementById('poseExitBt').addEventListener('click', poseExitUI);
+    document.getElementById('poseResetBt').addEventListener('click', poseResetCurrent);
+    document.getElementById('poseRestartBt').addEventListener('click', function () { if (window.__mmdPose && window.__mmdPose.resetAll) window.__mmdPose.resetAll(); poseSelectedName.setAttribute('data-name',''); posePitch.value = 0; poseYaw.value = 0; poseRoll.value = 0; poseRefreshSelected(); });
+    document.getElementById('poseMirrorBt').addEventListener('click', function () { if (window.__mmdPose && window.__mmdPose.mirror) { var r = window.__mmdPose.mirror(); status.textContent = '[镜像] 已应用 ' + r.applied.length + ' 根骨骼'; } });
+    document.getElementById('poseSaveBt').addEventListener('click', function () { if (window.__mmdPose && window.__mmdPose.savePose) { var r = window.__mmdPose.savePose(poseSlot.value); status.textContent = r && r.ok ? '[姿势] 已保存到槽位 ' + poseSlot.value : '[姿势] 保存失败'; } });
+    document.getElementById('poseLoadBt').addEventListener('click', function () { if (window.__mmdPose && window.__mmdPose.loadPose) { var r = window.__mmdPose.loadPose(poseSlot.value); status.textContent = r && r.ok ? '[姿势] 已载入 ' + r.bones + ' 根骨骼' : '[姿势] 槽位为空'; poseRefreshSelected(); } });
+    var poseFkChk = document.getElementById('poseFkChk');
+    poseFkChk.addEventListener('change', function () { if (window.__mmdPose && window.__mmdPose.setFkMode) window.__mmdPose.setFkMode(poseFkChk.checked); });
 
     // ======= 导出(带 分辨率/帧率/画质 设置面板) =======
     var btn = document.getElementById('exportBtn');
