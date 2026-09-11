@@ -1,8 +1,10 @@
 # 任务书：为 mmd-dance-viewer **从零实现**「踩城」游戏模式
 
 仓库（public）：`https://github.com/aaa621bbb/mmd-dance-viewer`
-规范（先读，逐条照做）：`docs/踩城模式_方案_v2.0.md`
-raw：`https://raw.githubusercontent.com/aaa621bbb/mmd-dance-viewer/main/docs/%E8%B8%A9%E5%9F%8E%E6%A8%A1%E5%BC%8F_%E6%96%B9%E6%A1%88_v2.0.md`
+规范（先读，逐条照做）：`docs/踩城模式_方案_v3.0.md` —— **施工图**，到"可以直接照着写代码"的粒度：
+算法给伪代码、数值给死、边界情况逐条列出、附 34 项实施清单与 13 项还原清单。
+raw：`https://raw.githubusercontent.com/aaa621bbb/mmd-dance-viewer/main/docs/%E8%B8%A9%E5%9F%8E%E6%A8%A1%E5%BC%8F_%E6%96%B9%E6%A1%88_v3.0.md`
+（`踩城模式_方案_v2.0.md` 是摘要版，先看它建立全局印象，再按 v3.0 施工。）
 
 ---
 
