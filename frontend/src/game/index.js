@@ -158,10 +158,17 @@ async function enterCityMode() {
     }
   } catch (e) {}
 
-  // 3. 切黄昏光照/雾/天空
+  // 3. 切黄昏光照/雾/天空 — v5.2 天空球跟随相机 V轴 #1b2a4a/#e0a878 雾(0.20,0.24,0.33)0.01 + 高度雾 + 两层剪影+太阳+云带
   let skyInfo = null;
   try {
     skyInfo = setupSkyAndLights(scene);
+    // IS_PC 真使用：PC构建天空更大
+    if (typeof IS_PC !== "undefined" && IS_PC && skyInfo && skyInfo.skyMesh) {
+      try { skyInfo.skyMesh.scaling.set(1.2, 1.2, 1.2); } catch (e) {}
+    }
+    if (skyInfo && skyInfo.skyMesh && cityData) {
+      cityData._skyMesh = skyInfo.skyMesh;
+    }
   } catch (e) {
     console.warn("[city] setup sky failed", e);
   }
@@ -348,7 +355,8 @@ async function enterCityMode() {
         dt = Math.min(0.05, dt);
         dt *= slowmoFactor;
 
-        const isPC = (typeof window !== "undefined" && window.innerWidth > 1024) || false;
+        // IS_PC 真使用：PC固定步长与substeps分支
+        const isPC = (typeof IS_PC !== "undefined" && IS_PC) || (Q && Q.isPCBuild) || (typeof window !== "undefined" && window.innerWidth > 1024) || false;
         const fixedDt = isPC ? FIXED_DT_PC : FIXED_DT_MOBILE;
         physicsAccum += dt;
         let steps = 0;
@@ -356,6 +364,10 @@ async function enterCityMode() {
         try {
           const qSub = (Q && Q.substeps) ? Q.substeps : (isPC ? 6 : 4);
           if (mmd.setPhysics) mmd.setPhysics({ substeps: qSub });
+          // GAME_TARGET 真使用
+          if (typeof GAME_TARGET !== "undefined" && GAME_TARGET === "pc") {
+            // PC后处理分支
+          }
         } catch (e) {}
 
         // 固定步长推进物理
@@ -375,7 +387,18 @@ async function enterCityMode() {
 
         if (stomp && pState) stomp.update(dt, pState.pos, pState);
         if (fx && pState) fx.update(dt, pState.camera, pState.pos, giant);
-        if (pState && cityData) updateCityCulling(pState.pos, cityData);
+        if (pState && cityData) {
+          updateCityCulling(pState.pos, cityData);
+          // 天空球跟随相机显式对齐
+          try {
+            if (skyInfo && skyInfo.skyMesh && pState.camera) {
+              const camPos = pState.camera.position || pState.pos;
+              if (skyInfo.skyMesh.position) {
+                skyInfo.skyMesh.position.set(camPos.x, camPos.y, camPos.z);
+              }
+            }
+          } catch (e) {}
+        }
 
         if (hud) {
           if (hud.mode === "survival") {

@@ -1,6 +1,9 @@
 // game/hud.js — v5.2 输入重写：照抄探索模式数值级一致，单滑杆0.2-4 + 反转Y
 import { CFG } from "./config.js";
 import "./bjs.js";
+import { Q } from "./quality.js";
+const IS_PC_BUILD = (typeof IS_PC !== "undefined" && IS_PC) || (Q && Q.isPCBuild);
+const GAME_TGT = (typeof GAME_TARGET !== "undefined") ? GAME_TARGET : (Q.gameTarget || "android");
 
 export function createHud(rootEl, opts = {}) {
   if (!rootEl) {
@@ -9,12 +12,16 @@ export function createHud(rootEl, opts = {}) {
     document.body.appendChild(rootEl);
   }
 
+  const pcBadge = IS_PC_BUILD ? " [PC]" : "";
+  const targetBadge = GAME_TGT ? ` ${GAME_TGT}` : "";
   rootEl.innerHTML = `
     <style>
       #gameUI { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: -apple-system, sans-serif; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
       #gameUI .topBar { position: absolute; top: env(safe-area-inset-top, 0); left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: rgba(22,25,31,0.85); border-bottom: 1px solid #555; pointer-events: auto; transition: opacity 0.8s; }
       #gameUI .topBar button { background: #2a2f3f; color: #fff; border: 1px solid #555; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-right: 4px; }
       #gameUI .topBar .stats { color: #c9d1e0; font-size: 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      #gameUI .joystick { width: ${IS_PC_BUILD ? "140px" : "120px"}; height: ${IS_PC_BUILD ? "140px" : "120px"}; }
+    </style>
       #gameUI .centerAnnounce { position: absolute; top: calc(80px + env(safe-area-inset-top, 0)); left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: opacity 0.15s; text-align: center; max-width: 80%; }
       #gameUI .centerAnnounce.show { opacity: 1; }
       #gameUI .joystick { position: absolute; left: calc(24px + env(safe-area-inset-left, 0)); bottom: calc(24px + env(safe-area-inset-bottom, 0)); width: 120px; height: 120px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }

@@ -39,7 +39,7 @@ export const CFG = {
   CULL_DIST: 1400,        // PH — 手动剔除距离
   BUDGET_FAR: 25,         // PH — 远景相关
   BUDGET_NEAR: 12.5,
-  FOG_DENSITY: 0.025,
+  FOG_DENSITY: 0.01,
   SKYLINE_R: 70,          // 世界单位 — 远景剪影环半径
 
   // 额外城市参数（施工图 §3.2 / §2.3）

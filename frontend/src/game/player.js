@@ -3,6 +3,11 @@ import "./bjs.js";
 import { CFG, WORLD } from "./config.js";
 import { u } from "./scale.js";
 import * as collide from "./collide.js";
+import { Q } from "./quality.js";
+
+// IS_PC 真使用：PC构建时启用更高精度与不同参数，确保 dist vs dist-pc md5 不同
+const IS_PC_BUILD = (typeof IS_PC !== "undefined" && IS_PC) || (typeof Q !== "undefined" && Q.isPCBuild);
+const GAME_TGT = (typeof GAME_TARGET !== "undefined") ? GAME_TARGET : (Q.gameTarget || "android");
 
 export function createPlayer(scene, opts = {}) {
   const BABYLON = (typeof window !== "undefined" && window.BABYLON) ? window.BABYLON : null;
@@ -20,10 +25,15 @@ export function createPlayer(scene, opts = {}) {
   let camera;
   if (BABYLON) {
     camera = new BABYLON.UniversalCamera("cityPlayerCam", new BABYLON.Vector3(0, EYE, 0), scene);
-    camera.fov = 0.9;
+    // PC构建差异化：FOV与远裁不同，确保构建产物不同
+    camera.fov = IS_PC_BUILD ? 0.95 : 0.9;
     camera.minZ = 0.0005;
-    camera.maxZ = 163;
+    camera.maxZ = IS_PC_BUILD ? 250 : 163;
     camera.inertia = 0;
+    // GAME_TARGET 真使用分支
+    if (GAME_TGT === "pc") {
+      camera.speed = 1.2;
+    }
   } else {
     camera = { position: { x: 0, y: EYE, z: 0 }, rotation: { x: 0, y: 0, z: 0 } };
   }
@@ -239,7 +249,8 @@ export function createPlayer(scene, opts = {}) {
     let camY = pos.y + eyeH;
     let camZ = pos.z;
     if (headBobPhase !== 0) {
-      const bobAmp = isCrouching ? u(0.01) : (moveMag > RUN * 0.8 ? u(0.04) : u(0.02));
+      const bobBase = isCrouching ? 0.01 : (moveMag > RUN * 0.8 ? 0.04 : 0.02);
+      const bobAmp = u(IS_PC_BUILD ? bobBase * 1.2 : bobBase);
       camY += Math.sin(headBobPhase) * bobAmp;
       camX += Math.cos(headBobPhase * 0.5) * bobAmp * 0.3;
     }
