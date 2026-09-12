@@ -370,6 +370,11 @@ export function resetMoveState() {
   _onGround = true;
 }
 
+// v5.2 卡住自救：清前方2单位楼
+export function clearFront(x, z, radius) {
+  return removeBoxesInRadius(x, z, radius, ["building", "furn", "car", "card"]);
+}
+
 // 额外：胶囊推开（她的腿）——简化为球体推开
 export function pushOutIfInside(pos, R, capsule) {
   // capsule: { p0:{x,y,z}, p1:{x,y,z}, r }

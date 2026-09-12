@@ -237,14 +237,29 @@ async function enterCityMode() {
   mmd._userPaused = false;
   mmd._ended = false;
 
+  // 动作先加载（v5.2 15支）
+  if (!motions) {
+    try {
+      motions = await loadDefaultMotions(scene);
+    } catch (e) {
+      console.warn("[city] load motions failed", e);
+      motions = { idle_a: null, walk: null, stomp: null };
+    }
+  }
+  if (mmd.mmdModel && motions && !motionCtrl) {
+    motionCtrl = createMotionController(mmd.mmdModel, motions);
+    motionCtrl.setMotion("idle_a");
+  }
+
   if (!giant) {
     const mmdModel = mmd.mmdModel;
     const mesh = modelRoot;
     const skeleton = mesh ? mesh.skeleton : null;
     giant = createGiant({ mmdModel, mesh, skeleton, root: mesh }, {
+      motionController: motionCtrl,
+      city: cityData,
       onMotionChange: (slot) => {
-        if (motionCtrl) motionCtrl.setMotion(slot);
-        // 换动作重置时间轴，保证循环
+        if (motionCtrl) motionCtrl.setMotion(slot, 0.4);
         mmd._absT0 = undefined;
         mmd._userPaused = false;
         mmd._ended = false;
@@ -252,20 +267,8 @@ async function enterCityMode() {
       },
       isCrouching: false,
     });
-  }
-
-  // 动作
-  if (!motions) {
-    try {
-      motions = await loadDefaultMotions(scene);
-    } catch (e) {
-      console.warn("[city] load motions failed", e);
-      motions = { idle: null, walk: null, stomp: null };
-    }
-  }
-  if (mmd.mmdModel && motions) {
-    motionCtrl = createMotionController(mmd.mmdModel, motions);
-    motionCtrl.setMotion("idle");
+  } else {
+    if (motionCtrl) giant.motionController = motionCtrl;
   }
 
   // 7. FX

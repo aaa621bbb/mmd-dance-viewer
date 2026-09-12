@@ -420625,7 +420625,7 @@ var CFG = {
   BUDGET_FAR: 25,
   // PH — 远景相关
   BUDGET_NEAR: 12.5,
-  FOG_DENSITY: 0.025,
+  FOG_DENSITY: 0.01,
   SKYLINE_R: 70,
   // 世界单位 — 远景剪影环半径
   // 额外城市参数（施工图 §3.2 / §2.3）
@@ -421251,13 +421251,12 @@ var LEVELS = {
   L0: {
     level: "L0",
     triBudget: 2e5,
-    // 实测 166k，v4 spec 12w 过于理想，现实 16-18w
     drawCallBudget: 60,
     shadowSize: 1024,
     shadowCascade: 1,
     atlasSize: 1024,
     atlasPadding: 4,
-    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    tileScale: { asphalt: 24, sidewalk: 8, grass: 12 },
     buildingDetail: 0,
     streetFurnitureTypes: 4,
     carDetail: false,
@@ -421273,15 +421272,14 @@ var LEVELS = {
   L1: {
     level: "L1",
     triBudget: 3e5,
-    // 实测 241k，spec 25w 接近
     drawCallBudget: 110,
     shadowSize: 2048,
     shadowCascade: 1,
     atlasSize: 2048,
     atlasPadding: 4,
-    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    tileScale: { asphalt: 24, sidewalk: 8, grass: 12 },
     buildingDetail: 1,
-    streetFurnitureTypes: 12,
+    streetFurnitureTypes: 6,
     carDetail: false,
     groundDetail: 1,
     enableBloom: true,
@@ -421295,13 +421293,12 @@ var LEVELS = {
   L2: {
     level: "L2",
     triBudget: 8e5,
-    // 实测 638k
     drawCallBudget: 300,
     shadowSize: 4096,
     shadowCascade: 2,
     atlasSize: 2048,
     atlasPadding: 4,
-    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    tileScale: { asphalt: 24, sidewalk: 12, grass: 16 },
     buildingDetail: 2,
     streetFurnitureTypes: 12,
     carDetail: true,
@@ -421318,13 +421315,12 @@ var LEVELS = {
   L3: {
     level: "L3",
     triBudget: 25e5,
-    // 实测 824k
     drawCallBudget: 700,
     shadowSize: 4096,
     shadowCascade: 4,
     atlasSize: 4096,
     atlasPadding: 8,
-    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    tileScale: { asphalt: 24, sidewalk: 16, grass: 24 },
     buildingDetail: 3,
     streetFurnitureTypes: 12,
     carDetail: true,
@@ -421341,7 +421337,15 @@ var LEVELS = {
 };
 function detectDefaultLevel() {
   try {
-    const isPC = typeof navigator !== "undefined" && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && window.innerWidth > 1024;
+    if (true) {
+      if (true) return "L2";
+      return "L2";
+    }
+    if (true) {
+      if (true) return "L2";
+      if (false) return "L1";
+    }
+    const isPC = typeof navigator !== "undefined" && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && typeof window !== "undefined" && window.innerWidth > 1024;
     if (isPC) return "L2";
   } catch (e) {
   }
@@ -421349,11 +421353,21 @@ function detectDefaultLevel() {
 }
 var currentLevel = detectDefaultLevel();
 try {
-  const saved = localStorage.getItem("game_quality");
-  if (saved && LEVELS[saved]) currentLevel = saved;
+  const saved = typeof localStorage !== "undefined" ? localStorage.getItem("game_quality") : null;
+  if (saved && LEVELS[saved]) {
+    currentLevel = saved;
+  }
 } catch (e) {
 }
-var Q = LEVELS[currentLevel];
+var Q = LEVELS[currentLevel] ? { ...LEVELS[currentLevel] } : { ...LEVELS.L1 };
+Q.level = currentLevel;
+try {
+  Q.isPCBuild = true ? true : false;
+  Q.gameTarget = true ? "pc" : "android";
+} catch (e) {
+  Q.isPCBuild = false;
+  Q.gameTarget = "android";
+}
 
 // src/game/atlas.js
 var BASE_ATLAS_SIZE = 1024;
@@ -421742,27 +421756,24 @@ function hexToRgb(hex) {
   return [r, g, b];
 }
 function jitterColor(rgb, rng, amount = 0.06) {
-  return rgb.map((c) => {
-    const j = (rng() - 0.5) * amount * 2;
-    return Math.max(0, Math.min(1, c + j));
-  });
+  return rgb.map((c) => Math.max(0, Math.min(1, c + (rng() - 0.5) * amount * 2)));
 }
 var ZONE_COLORS = {
-  commercial: ["#6b7280", "#7c8794", "#4b5563"].map(hexToRgb),
-  residential: ["#cbb79b", "#d8c7ae", "#b9a488"].map(hexToRgb),
-  oldtown: ["#a98a63", "#9c7f5a", "#b99a72"].map(hexToRgb),
+  commercial: ["#6b7280", "#7c8794", "#4b5563", "#8a95a5", "#5a6575"].map(hexToRgb),
+  residential: ["#cbb79b", "#d8c7ae", "#b9a488", "#d2c0a8", "#b8a088"].map(hexToRgb),
+  oldtown: ["#a98a63", "#9c7f5a", "#b99a72", "#8c7050", "#c0a080"].map(hexToRgb),
   park: ["#4f7d4a", "#5a8a55", "#3d6a38"].map(hexToRgb),
   construction: ["#8d8d8d", "#9a9a9a", "#7a7a7a"].map(hexToRgb),
   waterfront: ["#8a9aaa", "#7a8a9a", "#6b7a8a"].map(hexToRgb),
   plaza: ["#c2b8a8", "#d1c4b2", "#b8aa98"].map(hexToRgb)
 };
 var ZONE_PARAMS = {
-  commercial: { hMin: 12, hMax: 25, density: 0.9, window: [0, 3], lightDensity: 0.8 },
-  residential: { hMin: 7.5, hMax: 14, density: 0.6, window: [1, 2], lightDensity: 0.5 },
-  oldtown: { hMin: 7.5, hMax: 12, density: 0.7, window: [2, 1], lightDensity: 0.5 },
+  commercial: { hMin: 6, hMax: 14, density: 0.9, window: [0, 3], lightDensity: 0.8 },
+  residential: { hMin: 4, hMax: 8, density: 0.6, window: [1, 2], lightDensity: 0.5 },
+  oldtown: { hMin: 4, hMax: 8, density: 0.7, window: [2, 1], lightDensity: 0.5 },
   park: { hMin: 0, hMax: 0, density: 0, window: [], lightDensity: 0.1 },
-  construction: { hMin: 3, hMax: 8, density: 0.3, window: [8, 11], lightDensity: 0.1 },
-  waterfront: { hMin: 6, hMax: 15, density: 0.5, window: [0, 1], lightDensity: 0.4 },
+  construction: { hMin: 3, hMax: 8, density: 0.3, window: [0, 1], lightDensity: 0.1 },
+  waterfront: { hMin: 4, hMax: 8, density: 0.5, window: [0, 1], lightDensity: 0.4 },
   plaza: { hMin: 0, hMax: 0, density: 0, window: [], lightDensity: 0.6 }
 };
 function getZoneByAngle(angleDeg, rng) {
@@ -421841,7 +421852,6 @@ function createCityMaterial(scene, atlasTex, name649 = "cityMat") {
     mat.useVertexColor = true;
     return mat;
   } catch (e) {
-    console.warn("[city] mat fail", e);
     return null;
   }
 }
@@ -421853,10 +421863,7 @@ function rotatedAABB(x, z, W, D, yaw) {
     [-hx, hz],
     [-hx, -hz],
     [hx, -hz]
-  ].map(([cx, cz]) => ({
-    x: cx * cos - cz * sin,
-    z: cx * sin + cz * cos
-  }));
+  ].map(([cx, cz]) => ({ x: cx * cos - cz * sin, z: cx * sin + cz * cos }));
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const c of corners) {
     if (c.x < minX) minX = c.x;
@@ -421904,399 +421911,224 @@ function addSolid(batch, x, z, W, D, H, yBase, yaw, rect, tint, kind, auditList,
       minZ: box.minZ,
       maxZ: box.maxZ,
       expectedYBase: yBase,
-      diff: box.minY - yBase
+      diff: box.minY - yBase,
+      isBuilding: kind === "build",
+      segments: opts._segments || 1,
+      blockId: opts._blockId || null,
+      WPH: opts._WPH,
+      DPH: opts._DPH
     });
   }
   return box;
 }
-function addSolidCylinder(batch, x, z, r, H, yBase, seg, rect, tint, kind, auditList) {
-  const cy = yBase;
-  batch.addCylinder(x, cy, z, r, H, seg, rect, tint);
-  const W = r * 2, D = r * 2;
-  const box = {
-    minX: x - r,
-    maxX: x + r,
-    minY: yBase,
-    maxY: yBase + H,
-    minZ: z - r,
-    maxZ: z + r,
-    kind: kind || "furn",
-    x,
-    z,
-    W,
-    D,
-    H,
-    yBase,
-    yaw: 0
-  };
-  addBox(box);
-  if (auditList) auditList.push({
-    type: kind,
-    x,
-    z,
-    W,
-    D,
-    H,
-    yBase,
-    yaw: 0,
-    minX: box.minX,
-    maxX: box.maxX,
-    minY: box.minY,
-    maxY: box.maxY,
-    minZ: box.minZ,
-    maxZ: box.maxZ,
-    expectedYBase: yBase,
-    diff: 0
-  });
-  return box;
-}
-var FURNITURE_DEFS = [
-  { type: "lamp", spacing: 60, dist: 0.4, coll: true },
-  { type: "tree", spacing: 45, dist: 0.5, coll: true },
-  { type: "bench", spacing: 80, dist: 1, coll: true },
-  { type: "trash", spacing: 90, dist: 0.9, coll: true },
-  { type: "hydrant", spacing: 120, dist: 0.8, coll: true },
-  { type: "busSign", spacing: 150, dist: 1.2, coll: true },
-  { type: "flower", spacing: 100, dist: 1, coll: true },
-  { type: "billboard", spacing: 110, dist: 0.9, coll: true },
-  { type: "guard", spacing: 30, dist: 0.15, coll: true },
-  { type: "pole", spacing: 70, dist: 0.7, coll: true },
-  { type: "vending", spacing: 180, dist: 0.8, coll: true },
-  { type: "mailbox", spacing: 200, dist: 0.7, coll: true }
-];
-function addFurniture(batch, def, x, z, yaw, rng, auditList) {
-  const baseY = WORLD.CURB_H;
-  const metalRect = getAtlasRect(8);
-  const brickRect = getAtlasRect(6);
-  const signRect = getAtlasRect(10);
-  const grassRect = getAtlasRect(7);
-  switch (def.type) {
-    case "lamp": {
-      const poleH = u(5), poleR = u(0.08);
-      batch.addCylinder(x, baseY, z, poleR, poleH, 6, metalRect, [0.7, 0.7, 0.75]);
-      const armLen = u(0.6);
-      const armH = baseY + poleH - u(0.2);
-      const armX = x + Math.cos(yaw) * armLen * 0.5;
-      const armZ = z + Math.sin(yaw) * armLen * 0.5;
-      batch.addBox(armX, armH, armZ, armLen, u(0.08), u(0.08), yaw, metalRect, [0.7, 0.7, 0.75]);
-      const headX = x + Math.cos(yaw) * armLen;
-      const headZ = z + Math.sin(yaw) * armLen;
-      batch.addBox(headX, armH - u(0.1), headZ, u(0.6), u(0.2), u(0.3), yaw, signRect, [1, 0.9, 0.6]);
-      addSolidCylinder(batch, x, z, poleR, poleH, baseY, 6, metalRect, [0.7, 0.7, 0.75], "furn", auditList);
-      break;
-    }
-    case "tree": {
-      const trunkH = u(2.4), trunkR = u(0.12);
-      batch.addCylinder(x, baseY, z, trunkR, trunkH, 6, metalRect, [0.4, 0.25, 0.15]);
-      const crownR = u(1.2);
-      const tints = [[0.2, 0.5, 0.25], [0.25, 0.6, 0.3], [0.3, 0.55, 0.28]];
-      for (let i = 0; i < 3; i++) {
-        const cy = baseY + trunkH + u(0.3) + i * u(0.5);
-        const r = crownR * (1 - i * 0.15);
-        batch.addBox(x, cy, z, r * 2, r * 1.2, r * 2, 0, grassRect, tints[i]);
-      }
-      addSolidCylinder(batch, x, z, trunkR, trunkH, baseY, 6, metalRect, [0.4, 0.25, 0.15], "furn", auditList);
-      break;
-    }
-    case "bench": {
-      const sx = u(1.2), sy = u(0.45), sz = u(0.4);
-      addSolid(batch, x, z, sx, sz, sy, baseY, yaw, brickRect, [0.6, 0.4, 0.3], "furn", auditList);
-      break;
-    }
-    case "trash": {
-      const r = u(0.25), h = u(0.7);
-      addSolidCylinder(batch, x, z, r, h, baseY, 8, metalRect, [0.3, 0.3, 0.35], "furn", auditList);
-      break;
-    }
-    case "hydrant": {
-      const r = u(0.15), h = u(0.6);
-      addSolidCylinder(batch, x, z, r, h, baseY, 6, metalRect, [0.9, 0.1, 0.1], "furn", auditList);
-      break;
-    }
-    case "busSign": {
-      const poleH = u(2.6);
-      batch.addCylinder(x, baseY, z, u(0.05), poleH, 6, metalRect, [0.5, 0.5, 0.5]);
-      batch.addBox(x, baseY + poleH - u(0.25), z, u(1.4), u(0.5), u(0.05), yaw, signRect, [0.2, 0.5, 0.9]);
-      addSolidCylinder(batch, x, z, u(0.05), poleH, baseY, 6, metalRect, [0.5, 0.5, 0.5], "furn", auditList);
-      break;
-    }
-    case "flower": {
-      const sx = u(1.5), sy = u(0.4), sz = u(1.5);
-      addSolid(batch, x, z, sx, sz, sy, baseY, 0, brickRect, [0.6, 0.5, 0.4], "furn", auditList);
-      batch.addBox(x, baseY + sy + u(0.15), z, u(0.8), u(0.3), u(0.8), 0, grassRect, [0.3, 0.7, 0.4]);
-      break;
-    }
-    case "billboard": {
-      const sx = u(1.2), sy = u(2), sz = u(0.3);
-      const W = Math.abs(Math.cos(yaw)) > Math.abs(Math.sin(yaw)) ? sx : sz;
-      const D = Math.abs(Math.cos(yaw)) > Math.abs(Math.sin(yaw)) ? sz : sx;
-      addSolid(batch, x, z, sx, sz, sy, baseY, yaw, signRect, [1, 1, 1], "furn", auditList);
-      break;
-    }
-    case "guard": {
-      const len = u(1.5), h = u(0.5), thick = u(0.1);
-      const W = Math.abs(Math.cos(yaw)) * len + Math.abs(Math.sin(yaw)) * thick;
-      const D = Math.abs(Math.sin(yaw)) * len + Math.abs(Math.cos(yaw)) * thick;
-      addSolid(batch, x, z, len, thick, h, baseY, yaw, metalRect, [0.8, 0.8, 0.85], "furn", auditList);
-      break;
-    }
-    case "pole": {
-      const poleH = u(6), r = u(0.15);
-      addSolidCylinder(batch, x, z, r, poleH, baseY, 6, metalRect, [0.5, 0.5, 0.5], "furn", auditList);
-      break;
-    }
-    case "vending": {
-      const w = u(0.8), d = u(0.6), h = u(1.6);
-      addSolid(batch, x, z, w, d, h, baseY, yaw, signRect, [0.9, 0.2, 0.2], "furn", auditList);
-      break;
-    }
-    case "mailbox": {
-      const w = u(0.5), d = u(0.4), h = u(1);
-      addSolid(batch, x, z, w, d, h, baseY, yaw, metalRect, [0.2, 0.4, 0.9], "furn", auditList);
-      break;
-    }
-    default:
-      break;
-  }
-}
-var CAR_TYPES = [
-  { name: "sedan", len: 2.8, wid: 1.1, h: 0.9, color: [0.8, 0.1, 0.1] },
-  { name: "taxi", len: 2.8, wid: 1.1, h: 0.9, color: [0.95, 0.85, 0.1] },
-  { name: "bus", len: 6, wid: 1.6, h: 1.8, color: [0.9, 0.9, 0.9] },
-  { name: "truck", len: 4.5, wid: 1.5, h: 1.5, color: [0.3, 0.3, 0.35] },
-  { name: "ambulance", len: 3.2, wid: 1.2, h: 1.2, color: [1, 1, 1] },
-  { name: "police", len: 2.9, wid: 1.15, h: 0.95, color: [0.1, 0.1, 0.8] }
-];
-function addCar(batch, x, z, yaw, rng, auditList) {
-  const carDef = choice(rng, CAR_TYPES);
-  const len = u(carDef.len), wid = u(carDef.wid), h = u(carDef.h);
-  const tint = carDef.color;
-  const metalRect = getAtlasRect(8);
-  const glassRect = getAtlasRect(9);
-  const signRect = getAtlasRect(10);
-  const baseY = 0;
-  addSolid(batch, x, z, len, wid, h, baseY, yaw, metalRect, tint, "car", auditList);
-  const detail = Q.carDetail || Q.level === "L2" || Q.level === "L3";
-  if (detail) {
-    const topLen = len * 0.6, topWid = wid * 0.85, topH = u(0.45);
-    const cyTop = baseY + h + topH / 2 + u(0.05);
-    batch.addBox(x, cyTop, z, topLen, topH, topWid, yaw, glassRect, [0.7, 0.8, 0.9]);
-    const wheelR = u(0.25), wheelW = u(0.15);
-    const wheelY = baseY + wheelR;
-    const offsets = [
-      [len * 0.35, wid * 0.5],
-      [len * 0.35, -wid * 0.5],
-      [-len * 0.35, wid * 0.5],
-      [-len * 0.35, -wid * 0.5]
-    ];
-    for (const [ox, oz] of offsets) {
-      const rx = ox * Math.cos(yaw) - oz * Math.sin(yaw);
-      const rz = ox * Math.sin(yaw) + oz * Math.cos(yaw);
-      batch.addCylinder(x + rx, wheelY - wheelR, z + rz, wheelR, wheelW, 8, metalRect, [0.15, 0.15, 0.15]);
-    }
-    const lightSize = u(0.2);
-    const frontX = len / 2 - u(0.05);
-    const fx1 = frontX * Math.cos(yaw) - wid * 0.35 * Math.sin(yaw);
-    const fz1 = frontX * Math.sin(yaw) + wid * 0.35 * Math.cos(yaw);
-    const fx2 = frontX * Math.cos(yaw) - -wid * 0.35 * Math.sin(yaw);
-    const fz2 = frontX * Math.sin(yaw) + -wid * 0.35 * Math.cos(yaw);
-    batch.addBox(x + fx1, baseY + h * 0.5, z + fz1, lightSize, lightSize, lightSize, yaw, signRect, [1, 1, 0.8]);
-    batch.addBox(x + fx2, baseY + h * 0.5, z + fz2, lightSize, lightSize, lightSize, yaw, signRect, [1, 1, 0.8]);
-    if (carDef.name !== "bus") {
-      const mirX = len * 0.2;
-      const mirZ = wid * 0.6;
-      const mx1 = mirX * Math.cos(yaw) - mirZ * Math.sin(yaw);
-      const mz1 = mirX * Math.sin(yaw) + mirZ * Math.cos(yaw);
-      batch.addBox(x + mx1, baseY + h * 0.7, z + mz1, u(0.1), u(0.1), u(0.08), yaw, metalRect, [0.2, 0.2, 0.2]);
-    }
-    const plateW = u(0.4), plateH = u(0.15);
-    const backX = -len / 2 + u(0.05);
-    const bx = backX * Math.cos(yaw), bz = backX * Math.sin(yaw);
-    batch.addBox(x + bx, baseY + h * 0.3, z + bz, u(0.02), plateH, plateW, yaw, signRect, [1, 1, 1]);
-  } else {
-    const topLen = len * 0.6, topWid = wid * 0.8, topH = u(0.5);
-    const cyTop = baseY + h + topH / 2 + u(0.05);
-    batch.addBox(x, cyTop, z, topLen, topH, topWid, yaw, metalRect, tint);
-  }
-}
-function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, auditList, isMainRoad2) {
+function addBuildingV52(batch, block, cx, cz, WPH, DPH, HPH, zone, rng, auditList, usedCombos, blockFill) {
   const W = u(WPH), D = u(DPH), H = u(HPH);
-  const cx = cursor.x, cz = cursor.z;
-  const zoneCol = choice(rng, ZONE_COLORS[zone] || ZONE_COLORS.residential);
-  const tint = jitterColor(zoneCol, rng, 0.06);
-  const windowChoices = ZONE_PARAMS[zone]?.window || [0, 1];
-  const winId = choice(rng, windowChoices);
+  const yaw = Math.abs(WPH - DPH) < 0.1 ? 0 : WPH > DPH ? 0 : Math.PI / 2;
+  const actualYaw = typeof block._yaw === "number" ? block._yaw : yaw;
+  let winId, tint, tries = 0;
+  const zoneParam = ZONE_PARAMS[zone] || ZONE_PARAMS.residential;
+  const winChoices = zoneParam.window.length ? zoneParam.window : [0, 1, 2, 3];
+  do {
+    winId = choice(rng, winChoices.concat([0, 1, 2, 3]));
+    const baseCol = choice(rng, ZONE_COLORS[zone] || ZONE_COLORS.residential);
+    tint = jitterColor(baseCol, rng, 0.08);
+    const key = `${winId}_${Math.round(tint[0] * 10)}_${Math.round(tint[1] * 10)}`;
+    if (!usedCombos.has(key) || tries > 20) {
+      usedCombos.add(key);
+      break;
+    }
+    tries++;
+  } while (tries < 30);
   const winRect = getAtlasRect(winId);
   const doorRect = getAtlasRect(9);
   const roofRect = getAtlasRect(12);
   const metalRect = getAtlasRect(8);
   const signRect = getAtlasRect(10);
   const brickRect = getAtlasRect(6);
-  const isHorizontal = edge === "north" || edge === "south";
-  const yaw = isHorizontal ? 0 : Math.PI / 2;
-  const actualW = isHorizontal ? W : D;
-  const actualD = isHorizontal ? D : W;
-  const detailLevel = typeof Q !== "undefined" && typeof Q.buildingDetail === "number" ? Q.buildingDetail : 1;
-  const floors = rng() < 0.5 ? 1 : 2;
-  const baseH = u(floors * 2.2);
-  const hasSetback = rng() < 0.35;
-  let segments = [{ h: H, inset: 0, y: 0 }];
-  if (hasSetback) {
-    const numSeg = rng() < 0.5 ? 2 : 3;
-    const segH = H / numSeg;
-    segments = [];
-    for (let i = 0; i < numSeg; i++) {
-      const insetPH = i === 0 ? 0 : randRange(rng, 0.5, 2);
-      const inset = u(insetPH);
-      segments.push({ h: segH, inset, y: i * segH });
-    }
+  const sidewalkRect = getAtlasRect(6);
+  const baseH_PH = randRange(rng, 8, 14);
+  const topH_PH = 2;
+  const floors = zoneParam.hMin + Math.floor(rng() * (zoneParam.hMax - zoneParam.hMin + 1));
+  const midH_PH = floors * 12;
+  const totalH_PH = baseH_PH + midH_PH + topH_PH;
+  const baseH = u(baseH_PH);
+  const midH = u(midH_PH);
+  const topH = u(topH_PH);
+  const totalH = baseH + midH + topH;
+  addSolid(batch, cx, cz, W, D, baseH, 0, actualYaw, doorRect, tint, "build", auditList, { _segments: 3, _blockId: `${block.bx}_${block.bz}`, _WPH: WPH, _DPH: DPH, uScale: Math.max(1, WPH / 6), vScale: baseH_PH / 3 });
+  addSolid(batch, cx, cz, W * 0.98, D * 0.98, midH, baseH, actualYaw, winRect, tint, "build", auditList, { _segments: 3, _blockId: `${block.bx}_${block.bz}`, _WPH: WPH, _DPH: DPH, uScale: Math.max(1, WPH / 4), vScale: midH_PH / 3 });
+  addSolid(batch, cx, cz, W * 1.02, D * 1.02, topH, baseH + midH, actualYaw, roofRect, tint, "build", auditList, { _segments: 3, _blockId: `${block.bx}_${block.bz}`, _WPH: WPH, _DPH: DPH });
+  const bDetail = Q && typeof Q.buildingDetail === "number" ? Q.buildingDetail : 1;
+  const frontOffset = D / 2 - u(0.01);
+  const fx2 = cx + Math.sin(actualYaw) * frontOffset;
+  const fz = cz + Math.cos(actualYaw) * frontOffset;
+  function addFrontQuad(cx_, cz_, w_, h_, y_, rect_, tint_) {
+    const halfW = w_ / 2;
+    const halfH = h_ / 2;
+    const nx = Math.sin(actualYaw), nz = Math.cos(actualYaw);
+    const rx = Math.cos(actualYaw), rz = -Math.sin(actualYaw);
+    const cy = y_;
+    const p0 = { x: cx_ - rx * halfW, y: cy - halfH, z: cz_ - rz * halfW };
+    const p1 = { x: cx_ + rx * halfW, y: cy - halfH, z: cz_ + rz * halfW };
+    const p2 = { x: cx_ + rx * halfW, y: cy + halfH, z: cz_ + rz * halfW };
+    const p3 = { x: cx_ - rx * halfW, y: cy + halfH, z: cz_ - rz * halfW };
+    batch.addQuad(p0, p1, p2, p3, rect_, tint_, [nx, 0, nz]);
   }
-  const hasDouble = rng() < 0.25 && !hasSetback;
-  if (hasDouble) {
-    const split = randRange(rng, 0.4, 0.6);
-    const W1 = actualW * split, W2 = actualW * (1 - split);
-    const H1 = H, H2 = H * randRange(rng, 0.6, 1);
-    const x1 = isHorizontal ? cx - W2 / 2 : cx;
-    const z1 = isHorizontal ? cz : cz - W2 / 2;
-    addSolid(batch, x1, z1, W1, actualD, H1, 0, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
-    const x2 = isHorizontal ? cx + W1 / 2 : cx;
-    const z2 = isHorizontal ? cz : cz + W1 / 2;
-    addSolid(batch, x2, z2, W2, actualD, H2, 0, yaw, winRect, tint, "build", auditList, { uScale: W2 / u(1) / 2.5, vScale: H2 / u(1) / 2.2 });
-    const parapetH2 = u(0.4);
-    batch.addBox(cx, H + parapetH2 / 2, cz, actualW + u(0.2), parapetH2, actualD + u(0.2), yaw, roofRect, tint);
-    if (detailLevel >= 1) {
-      const doorW = u(0.9), doorH = u(1.9);
-      const frontOffset = actualD / 2 + u(0.02);
-      const dx = isHorizontal ? 0 : edge === "east" ? frontOffset : -frontOffset;
-      const dz = isHorizontal ? edge === "north" ? frontOffset : -frontOffset : 0;
-      batch.addBox(cx + dx, doorH / 2, cz + dz, isHorizontal ? doorW : u(0.05), doorH, isHorizontal ? u(0.05) : doorW, yaw, doorRect, [1, 1, 1]);
-      batch.addBox(cx + dx + (isHorizontal ? doorW * 0.35 : 0), doorH * 0.5, cz + dz + (isHorizontal ? 0 : doorW * 0.35), u(0.05), u(0.05), u(0.02), yaw, metalRect, [0.9, 0.8, 0.3]);
-      batch.addBox(cx + dx * 1.1, u(0.05), cz + dz * 1.1, isHorizontal ? doorW + u(0.2) : u(0.6), u(0.1), isHorizontal ? u(0.6) : doorW + u(0.2), yaw, brickRect, [0.8, 0.8, 0.8]);
-    }
-    return;
-  }
-  for (const seg of segments) {
-    const segW = actualW - seg.inset * 2;
-    const segD = actualD - seg.inset * 2;
-    if (segW <= u(1) || segD <= u(1)) continue;
-    const segY = seg.y;
-    if (seg.y < baseH) {
-      const hInBase = Math.min(seg.h, baseH - seg.y);
-      addSolid(batch, cx, cz, segW, segD, hInBase, seg.y, yaw, doorRect, tint, "build", auditList);
-      if (seg.h > hInBase) {
-        const upperSegH = seg.h - hInBase;
-        addSolid(batch, cx, cz, segW, segD, upperSegH, seg.y + hInBase, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
-      }
-    } else {
-      addSolid(batch, cx, cz, segW, segD, seg.h, seg.y, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
-    }
-  }
-  const parapetH = u(0.4);
-  batch.addBox(cx, H + parapetH / 2, cz, actualW + u(0.1), parapetH, actualD + u(0.1), yaw, roofRect, tint);
-  if (detailLevel >= 1) {
+  if (bDetail >= 0) {
     const doorW = u(0.9), doorH = u(1.9);
-    const frontOffset = actualD / 2 + u(0.02);
-    const dx = isHorizontal ? 0 : edge === "east" ? frontOffset : -frontOffset;
-    const dz = isHorizontal ? edge === "north" ? frontOffset : -frontOffset : 0;
-    batch.addBox(cx + dx, doorH / 2, cz + dz, isHorizontal ? doorW : u(0.05), doorH, isHorizontal ? u(0.05) : doorW, yaw, doorRect, [1, 1, 1]);
-    batch.addBox(cx + dx + (isHorizontal ? doorW * 0.35 : 0), doorH * 0.5, cz + dz + (isHorizontal ? 0 : doorW * 0.35), u(0.05), u(0.05), u(0.02), yaw, metalRect, [0.9, 0.8, 0.3]);
-    batch.addBox(cx + dx * 1.1, u(0.05), cz + dz * 1.1, isHorizontal ? doorW + u(0.2) : u(0.6), u(0.1), isHorizontal ? u(0.6) : doorW + u(0.2), yaw, brickRect, [0.8, 0.8, 0.8]);
+    addFrontQuad(fx2, fz, doorW, doorH, doorH / 2, doorRect, [1, 1, 1]);
+    batch.addBox(fx2 + Math.sin(actualYaw) * u(0.1), u(0.05), fz + Math.cos(actualYaw) * u(0.1), doorW + u(0.2), u(0.1), u(0.6), actualYaw, brickRect, [0.8, 0.8, 0.8]);
+    addFrontQuad(fx2, fz + Math.cos(actualYaw) * u(0.06), W * 0.6, u(0.5), baseH + u(0.6), signRect, [1, 1, 1]);
   }
-  if (zone === "commercial" || rng() < 0.6) {
-    const awningW = actualW * 0.8, awningD = u(0.5);
-    const awningX = cx, awningZ = cz + (isHorizontal ? edge === "north" ? actualD / 2 + awningD / 2 : -actualD / 2 - awningD / 2 : 0);
-    const awningX2 = isHorizontal ? awningX : cx + (edge === "east" ? actualW / 2 + awningD / 2 : -actualW / 2 - awningD / 2);
-    const awningZ2 = isHorizontal ? awningZ : cz;
-    batch.addBox(awningX2, baseH + u(0.1), awningZ2, isHorizontal ? awningW : awningD, u(0.05), isHorizontal ? awningD : awningW, yaw, metalRect, [0.9, 0.9, 0.9]);
-    if (detailLevel >= 1) {
-      const rodH = baseH;
-      const rodR = u(0.03);
-      const rodX1 = awningX2 + (isHorizontal ? awningW * 0.4 : awningD * 0.4);
-      const rodZ1 = awningZ2;
-      batch.addCylinder(rodX1, 0, rodZ1, rodR, rodH, 4, metalRect, [0.7, 0.7, 0.75]);
-    }
-    if (detailLevel >= 0) {
-      const signW = actualW * 0.6, signH = u(0.5);
-      const frontOffset = actualD / 2 + u(0.06);
-      const sx = isHorizontal ? cx : cx + (edge === "east" ? frontOffset : -frontOffset);
-      const sz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz;
-      batch.addBox(sx, baseH + u(0.6), sz, isHorizontal ? signW : u(0.05), signH, isHorizontal ? u(0.05) : signW, yaw, signRect, [1, 1, 1]);
-    }
+  if (bDetail >= 1) {
+    const shopW = W * 0.6;
+    addFrontQuad(fx2 + Math.cos(actualYaw) * W * 0.2, fz + Math.sin(actualYaw) * W * 0.2, shopW * 0.35, baseH * 0.5, baseH * 0.5, winRect, [0.9, 0.9, 1]);
+    addFrontQuad(fx2 - Math.cos(actualYaw) * W * 0.2, fz - Math.sin(actualYaw) * W * 0.2, shopW * 0.35, baseH * 0.5, baseH * 0.5, winRect, [0.9, 0.9, 1]);
+    const awningY = baseH + u(0.1);
+    const awX = fx2, awZ = fz + Math.cos(actualYaw) * u(0.25);
+    const awW = W * 0.75, awD = u(0.45);
+    const rx = Math.cos(actualYaw), rz = -Math.sin(actualYaw);
+    const nx = Math.sin(actualYaw), nz = Math.cos(actualYaw);
+    batch.addQuad(
+      { x: awX - rx * awW / 2 - nx * awD / 2, y: awningY, z: awZ - rz * awW / 2 - nz * awD / 2 },
+      { x: awX + rx * awW / 2 - nx * awD / 2, y: awningY, z: awZ + rz * awW / 2 - nz * awD / 2 },
+      { x: awX + rx * awW / 2 + nx * awD / 2, y: awningY, z: awZ + rz * awW / 2 + nz * awD / 2 },
+      { x: awX - rx * awW / 2 + nx * awD / 2, y: awningY, z: awZ - rz * awW / 2 + nz * awD / 2 },
+      metalRect,
+      [0.9, 0.9, 0.9],
+      [0, 1, 0]
+    );
   }
-  if (detailLevel >= 2 && H > u(4) && rng() < 0.7) {
-    const balFloors = Math.floor((H - baseH) / u(2.8));
-    for (let f = 0; f < Math.min(balFloors, 3); f++) {
-      if (rng() < 0.4) continue;
-      const by = baseH + u(2.8) * f + u(1.2);
-      const balW = actualW * 0.4, balD = u(0.6), balH = u(0.08);
-      const frontOffset = actualD / 2 + balD / 2;
-      const bx = isHorizontal ? cx + (rng() - 0.5) * actualW * 0.5 : cx + (edge === "east" ? frontOffset : -frontOffset);
-      const bz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz + (rng() - 0.5) * actualW * 0.5;
-      batch.addBox(bx, by, bz, isHorizontal ? balW : balD, balH, isHorizontal ? balD : balW, yaw, brickRect, [0.9, 0.85, 0.8]);
-      batch.addBox(bx, by + u(0.5), bz + (isHorizontal ? balD * 0.4 : 0), isHorizontal ? balW : u(0.05), u(0.8), isHorizontal ? u(0.05) : balW, yaw, metalRect, [0.7, 0.7, 0.75]);
-      if (rng() < 0.5) {
-        batch.addBox(bx, by + u(0.6), bz, u(0.6), u(0.02), u(0.02), yaw, metalRect, [0.8, 0.8, 0.8]);
-        batch.addBox(bx, by + u(0.45), bz, u(0.3), u(0.25), u(0.01), yaw, signRect, [0.2, 0.6, 0.9]);
-      }
+  if (bDetail >= 2) {
+    batch.addBox(cx, baseH + midH * 0.5, cz, W * 1.005, u(0.12), D * 1.005, actualYaw, brickRect, [0.85, 0.85, 0.8]);
+    batch.addBox(cx, baseH + u(0.04), cz, W * 1.002, u(0.1), D * 1.002, actualYaw, brickRect, [0.7, 0.7, 0.7]);
+  }
+  const equipCount = 1 + (bDetail >= 2 ? randInt(rng, 0, 1) : 0) + (bDetail >= 3 ? randInt(rng, 0, 2) : 0);
+  for (let i = 0; i < equipCount; i++) {
+    const ex = cx + (rng() - 0.5) * W * 0.5;
+    const ez = cz + (rng() - 0.5) * D * 0.5;
+    const ew = u(randRange(rng, 0.4, 1));
+    const eh = u(randRange(rng, 0.4, 1.2));
+    const ed = u(randRange(rng, 0.4, 0.8));
+    if (rng() < 0.3) {
+      batch.addCylinder(ex, totalH, ez, ew * 0.5, eh, 6, metalRect, [0.6, 0.6, 0.65]);
+    } else {
+      batch.addBox(ex, totalH + eh / 2, ez, ew, eh, ed, 0, metalRect, [0.5, 0.5, 0.55]);
     }
   }
-  if (detailLevel >= 2 && rng() < 0.8) {
-    const acCount = randInt(rng, 1, 2);
-    for (let i = 0; i < acCount; i++) {
-      const ay = baseH + u(1.5) + rng() * (H - baseH - u(2));
-      const sideOffset = actualW / 2 + u(0.15);
-      const ax = isHorizontal ? cx + (rng() < 0.5 ? sideOffset : -sideOffset) : cx;
-      const az = isHorizontal ? cz : cz + (rng() < 0.5 ? sideOffset : -sideOffset);
-      const acW = u(0.4), acH = u(0.3), acD = u(0.25);
-      batch.addBox(ax, ay, az, acW, acH, acD, yaw, metalRect, [0.85, 0.85, 0.88]);
-      batch.addBox(ax, ay, az + u(0.13), acW * 0.8, acH * 0.6, u(0.02), yaw, metalRect, [0.3, 0.3, 0.35]);
-      batch.addBox(ax, ay - u(0.2), az, u(0.04), u(0.6), u(0.04), 0, metalRect, [0.6, 0.6, 0.6]);
+  if (blockFill) {
+    blockFill.area += W * D;
+    blockFill.count++;
+  }
+  return { W, D, H: totalH, WPH, DPH, HPH: totalH_PH, cx, cz, yaw: actualYaw };
+}
+function generateBlockFacades(block, batch, rng, auditList, usedCombos, blockFill) {
+  const netWPH = block.netWPH;
+  const netDPH = block.netDPH;
+  const zone = block.zone;
+  const buildings = [];
+  const level = Q && Q.level ? Q.level : "L1";
+  const isCommercial = zone === "commercial";
+  let cornerMin, cornerMax;
+  if (level === "L1") {
+    cornerMin = 27.7;
+    cornerMax = 28.5;
+  } else {
+    cornerMin = isCommercial ? 24 : 20;
+    cornerMax = isCommercial ? 30 : 26;
+  }
+  const cornerWPH = randRange(rng, cornerMin, cornerMax);
+  const cornerDPH = randRange(rng, cornerMin, cornerMax);
+  const corners = [
+    { x: -netWPH / 2 + cornerWPH / 2, z: netDPH / 2 - cornerDPH / 2, yaw: 0 },
+    { x: netWPH / 2 - cornerWPH / 2, z: netDPH / 2 - cornerDPH / 2, yaw: 0 },
+    { x: -netWPH / 2 + cornerWPH / 2, z: -netDPH / 2 + cornerDPH / 2, yaw: 0 },
+    { x: netWPH / 2 - cornerWPH / 2, z: -netDPH / 2 + cornerDPH / 2, yaw: 0 }
+  ];
+  for (const c of corners) {
+    const cx = block.cx + u(c.x);
+    const cz = block.cz + u(c.z);
+    block._yaw = c.yaw;
+    const b = addBuildingV52(batch, block, cx, cz, cornerWPH, cornerDPH, 0, zone, rng, auditList, usedCombos, blockFill);
+    buildings.push(b);
+  }
+  const gapCornerPH = randRange(rng, 0.5, 2);
+  function genEdge(edge, availablePH, isHorizontal) {
+    let count = 0;
+    if (level === "L0") count = 0;
+    else if (level === "L1") count = 0;
+    else if (level === "L2") count = 1;
+    else count = randInt(rng, 1, 2);
+    if (count === 0) return;
+    if (availablePH < 10) return;
+    const coverage = 0.8 + rng() * 0.15;
+    const totalBuildingPH = availablePH * coverage;
+    const gaps = count > 1 ? (count - 1) * randRange(rng, 0.5, 2) : 0;
+    const totalForBuildings = totalBuildingPH - gaps;
+    if (totalForBuildings < 5) return;
+    const weights = [];
+    let sumW = 0;
+    for (let i = 0; i < count; i++) {
+      const w = 0.5 + rng() * 1;
+      weights.push(w);
+      sumW += w;
     }
-  }
-  if (detailLevel >= 2 && rng() < 0.5) {
-    const winY = baseH + u(1);
-    const frontOffset = actualD / 2 + u(0.05);
-    const fx2 = isHorizontal ? cx : cx + (edge === "east" ? frontOffset : -frontOffset);
-    const fz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz;
-    batch.addBox(fx2, winY, fz, isHorizontal ? u(1) : u(0.05), u(1), isHorizontal ? u(0.05) : u(1), yaw, metalRect, [0.5, 0.5, 0.55]);
-  }
-  const distPH = Math.hypot(block.cxPH, block.czPH);
-  if (distPH < 600 && isMainRoad2 && rng() < (detailLevel >= 2 ? 0.7 : 0.45)) {
-    const propCount = randInt(rng, 1, detailLevel >= 2 ? 5 : 3);
-    for (let i = 0; i < propCount; i++) {
-      const px = cx + (rng() - 0.5) * actualW * 0.6;
-      const pz = cz + (rng() - 0.5) * actualD * 0.6;
-      const pw = u(randRange(rng, 0.4, 1.2));
-      const ph = u(randRange(rng, 0.4, 1.5));
-      const pd = u(randRange(rng, 0.4, 1));
-      const isTank = rng() < 0.3;
-      if (isTank) {
-        batch.addCylinder(px, H, pz, pw * 0.5, ph, 8, metalRect, [0.6, 0.6, 0.65]);
+    let cursor = -availablePH / 2;
+    for (let i = 0; i < count; i++) {
+      const wPH = totalForBuildings * (weights[i] / sumW);
+      if (wPH < 8) continue;
+      const dPH = randRange(rng, 15, 25);
+      let cxPH, czPH, yaw;
+      if (edge === "north") {
+        cxPH = cursor + wPH / 2;
+        czPH = netDPH / 2 - dPH / 2;
+        yaw = 0;
+      } else if (edge === "south") {
+        cxPH = cursor + wPH / 2;
+        czPH = -netDPH / 2 + dPH / 2;
+        yaw = 0;
+      } else if (edge === "east") {
+        cxPH = netWPH / 2 - dPH / 2;
+        czPH = cursor + wPH / 2;
+        yaw = Math.PI / 2;
       } else {
-        batch.addBox(px, H + ph / 2, pz, pw, ph, pd, 0, metalRect, [0.5, 0.5, 0.55]);
+        cxPH = -netWPH / 2 + dPH / 2;
+        czPH = cursor + wPH / 2;
+        yaw = Math.PI / 2;
       }
-      if (detailLevel >= 3 && i === 0) {
-        batch.addBox(px + pw * 0.6, H + u(0.5), pz, u(0.6), u(1), u(0.05), 0, metalRect, [0.4, 0.4, 0.45]);
-        batch.addBox(px - pw * 0.6, H * 0.5, pz, u(0.3), H, u(0.05), 0, metalRect, [0.5, 0.5, 0.55]);
-      }
+      const cx = block.cx + u(cxPH);
+      const cz = block.cz + u(czPH);
+      block._yaw = yaw;
+      const finalW = isHorizontal ? wPH : dPH;
+      const finalD = isHorizontal ? dPH : wPH;
+      const b = addBuildingV52(batch, block, cx, cz, finalW, finalD, 0, zone, rng, auditList, usedCombos, blockFill);
+      buildings.push(b);
+      cursor += wPH + (count > 1 ? gaps / (count - 1) : 0);
     }
   }
-  if (detailLevel >= 2 && rng() < 0.6) {
-    const ladderH = H * 0.8;
-    const sideX = cx + actualW / 2 + u(0.1);
-    const sideZ = cz;
-    const lx = isHorizontal ? sideX : cx;
-    const lz = isHorizontal ? cz : sideZ + actualW / 2 + u(0.1);
-    batch.addBox(lx, ladderH / 2, lz, u(0.05), ladderH, u(0.4), yaw, metalRect, [0.55, 0.1, 0.1]);
-    batch.addCylinder(cx + actualW * 0.45, 0, cz + actualD * 0.45, u(0.04), H, 4, metalRect, [0.4, 0.4, 0.45]);
+  const northAvail = netWPH - 2 * cornerWPH - 2 * gapCornerPH;
+  genEdge("north", northAvail, true);
+  genEdge("south", netWPH - 2 * cornerWPH - 2 * gapCornerPH, true);
+  genEdge("east", netDPH - 2 * cornerDPH - 2 * gapCornerPH, false);
+  genEdge("west", netDPH - 2 * cornerDPH - 2 * gapCornerPH, false);
+  let interiorCount = 0;
+  if (zone === "commercial" || zone === "residential" || zone === "oldtown" || zone === "waterfront") {
+    if (level === "L0") interiorCount = 0;
+    else if (level === "L1") interiorCount = 0;
+    else if (level === "L2") interiorCount = 1;
+    else interiorCount = randInt(rng, 1, 2);
   }
-  if (detailLevel >= 2 && rng() < 0.4) {
-    const graffitiY = u(1);
-    const frontOffset = actualD / 2 + u(0.01);
-    const gx = isHorizontal ? cx + (rng() - 0.5) * actualW * 0.6 : cx + (edge === "east" ? frontOffset : -frontOffset);
-    const gz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz + (rng() - 0.5) * actualW * 0.6;
-    batch.addBox(gx, graffitiY, gz, isHorizontal ? u(1.2) : u(0.02), u(0.8), isHorizontal ? u(0.02) : u(1.2), yaw, signRect, [1, 0.3, 0.6]);
+  for (let i = 0; i < interiorCount; i++) {
+    const wPH = randRange(rng, 12, 20);
+    const dPH = randRange(rng, 12, 20);
+    const xPH = (rng() - 0.5) * (netWPH * 0.35);
+    const zPH = (rng() - 0.5) * (netDPH * 0.35);
+    const cx = block.cx + u(xPH);
+    const cz = block.cz + u(zPH);
+    block._yaw = rng() * Math.PI;
+    addBuildingV52(batch, block, cx, cz, wPH, dPH, 0, zone, rng, auditList, usedCombos, blockFill);
   }
+  return buildings;
 }
 function buildCity(scene, opts = {}) {
   const startTime = performance.now();
@@ -422319,6 +422151,8 @@ function buildCity(scene, opts = {}) {
   const tiles = [];
   let totalTris = 0, totalVerts = 0, buildingCount = 0;
   const auditRecords = [];
+  const blockFills = [];
+  const gaps = [];
   for (let tx = 0; tx < tilesPerSide; tx++) {
     for (let tz = 0; tz < tilesPerSide; tz++) {
       const batch = new GeoBatch();
@@ -422336,30 +422170,29 @@ function buildCity(scene, opts = {}) {
       const sidewalkRect = getAtlasRect(6);
       const grassRect = getAtlasRect(7);
       const metalRect = getAtlasRect(8);
-      const blobRect = getAtlasRect(15);
-      batch.addQuad({ x: tileMinX, y: 0, z: tileMinZ }, { x: tileMaxX, y: 0, z: tileMinZ }, { x: tileMaxX, y: 0, z: tileMaxZ }, { x: tileMinX, y: 0, z: tileMaxZ }, asphaltRect, [0.9, 0.9, 0.9]);
-      {
-        const tileRng = mulberry32(seedFor(`ground-${tx}-${tz}`, tx, tz));
-        const gd = typeof Q !== "undefined" && typeof Q.groundDetail === "number" ? Q.groundDetail : 1;
-        if (gd >= 1) {
-          const manholeCount = gd >= 2 ? randInt(tileRng, 3, 6) : randInt(tileRng, 1, 3);
-          for (let m = 0; m < manholeCount; m++) {
-            const mx = tileMinX + tileRng() * (tileMaxX - tileMinX);
-            const mz = tileMinZ + tileRng() * (tileMaxZ - tileMinZ);
-            const r = u(0.35);
-            batch.addCylinder(mx, 2e-3, mz, r, u(0.02), 8, metalRect, [0.35, 0.35, 0.38]);
-          }
-        }
-        if (gd >= 2) {
-          const puddleCount = randInt(tileRng, 1, 3);
-          for (let p = 0; p < puddleCount; p++) {
-            const px = tileMinX + tileRng() * (tileMaxX - tileMinX);
-            const pz = tileMinZ + tileRng() * (tileMaxZ - tileMinZ);
-            const pw = u(randRange(tileRng, 1.5, 3.5));
-            const pd = u(randRange(tileRng, 1, 2.5));
-            batch.addQuad({ x: px - pw / 2, y: 3e-3, z: pz - pd / 2 }, { x: px + pw / 2, y: 3e-3, z: pz - pd / 2 }, { x: px + pw / 2, y: 3e-3, z: pz + pd / 2 }, { x: px - pw / 2, y: 3e-3, z: pz + pd / 2 }, blobRect, [0.6, 0.7, 0.85]);
-          }
-        }
+      const groundUV = 24;
+      batch.addQuad(
+        { x: tileMinX, y: 0, z: tileMinZ },
+        { x: tileMaxX, y: 0, z: tileMinZ },
+        { x: tileMaxX, y: 0, z: tileMaxZ },
+        { x: tileMinX, y: 0, z: tileMaxZ },
+        asphaltRect,
+        [0.9, 0.9, 0.9],
+        [0, 1, 0],
+        { u: groundUV, v: groundUV }
+      );
+      if (tx === 0 && tz === 0) {
+        const outer = 400;
+        batch.addQuad(
+          { x: -outer / 2, y: -0.01, z: -outer / 2 },
+          { x: outer / 2, y: -0.01, z: -outer / 2 },
+          { x: outer / 2, y: -0.01, z: outer / 2 },
+          { x: -outer / 2, y: -0.01, z: outer / 2 },
+          grassRect,
+          [0.6, 0.6, 0.6],
+          [0, 1, 0],
+          { u: 24, v: 24 }
+        );
       }
       for (let bx = tileMinBX; bx <= tileMaxBX; bx++) {
         for (let bz = tileMinBZ; bz <= tileMaxBZ; bz++) {
@@ -422368,31 +422201,29 @@ function buildCity(scene, opts = {}) {
           const rng = mulberry32(seedFor(`b-${bx}-${bz}`, bx, bz));
           if (block.isCenterPlaza) {
             const brickRect2 = getAtlasRect(6);
-            batch.addQuad({ x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, brickRect2, [1, 1, 1]);
-            const fountainR = u(2);
-            batch.addCylinder(block.cx, 1e-3, block.cz, fountainR, u(0.5), 12, brickRect2, [0.8, 0.8, 0.9]);
-            for (let f = 0; f < 4; f++) {
-              const ang = f / 4 * Math.PI * 2;
-              const fx2 = block.cx + Math.cos(ang) * u(8);
-              const fz = block.cz + Math.sin(ang) * u(8);
-              addSolid(batch, fx2, fz, u(1.5), u(1.5), u(0.4), 0, 0, brickRect2, [0.6, 0.5, 0.4], "furn", auditRecords);
-            }
+            batch.addQuad(
+              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
+              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
+              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
+              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
+              brickRect2,
+              [1, 1, 1],
+              [0, 1, 0],
+              { u: 8, v: 8 }
+            );
             continue;
           }
           if (block.zone === "park") {
-            const grassRect2 = getAtlasRect(7);
-            batch.addQuad({ x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, grassRect2, [1, 1, 1]);
-            const treeCount = randInt(rng, 5, 12);
-            for (let t = 0; t < treeCount; t++) {
-              const tx2 = block.cx + (rng() - 0.5) * block.netW * 0.8;
-              const tz2 = block.cz + (rng() - 0.5) * block.netD * 0.8;
-              addFurniture(batch, { type: "tree" }, tx2, tz2, 0, rng, auditRecords);
-            }
-            for (let b = 0; b < 3; b++) {
-              const bx2 = block.cx + (rng() - 0.5) * block.netW * 0.6;
-              const bz2 = block.cz + (rng() - 0.5) * block.netD * 0.6;
-              addFurniture(batch, { type: "bench" }, bx2, bz2, rng() * Math.PI * 2, rng, auditRecords);
-            }
+            batch.addQuad(
+              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
+              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
+              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
+              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
+              grassRect,
+              [1, 1, 1],
+              [0, 1, 0],
+              { u: 12, v: 12 }
+            );
             continue;
           }
           const sidewalkW = WORLD.SIDEWALK;
@@ -422402,127 +422233,13 @@ function buildCity(scene, opts = {}) {
           addSolid(batch, block.cx, block.cz - block.netD / 2 - sidewalkW / 2, block.netW + sidewalkW * 2, sidewalkW, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
           addSolid(batch, block.cx + block.netW / 2 + sidewalkW / 2, block.cz, sidewalkW, block.netD, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
           addSolid(batch, block.cx - block.netW / 2 - sidewalkW / 2, block.cz, sidewalkW, block.netD, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
-          const zoneParam = ZONE_PARAMS[block.zone] || ZONE_PARAMS.residential;
-          const bDetail = typeof Q !== "undefined" && typeof Q.buildingDetail === "number" ? Q.buildingDetail : 1;
-          const buildingRange = bDetail === 0 ? [1, 1] : bDetail === 1 ? [1, 3] : bDetail === 2 ? [2, 4] : [3, 6];
-          const totalBuildings = randInt(rng, buildingRange[0], buildingRange[1]);
-          const edges = ["north", "south", "east", "west"];
-          const perEdge = [0, 0, 0, 0];
-          for (let i = 0; i < totalBuildings; i++) perEdge[i % 4]++;
-          for (let e = 0; e < 4; e++) {
-            const count = perEdge[e];
-            if (count === 0) continue;
-            const edge = edges[e];
-            const isHorizontal = edge === "north" || edge === "south";
-            const edgeLen = isHorizontal ? block.netW : block.netD;
-            let cursorPos = -edgeLen / 2 + u(1);
-            for (let b = 0; b < count; b++) {
-              const WPH = randRange(rng, 5, 12.5);
-              const DPH = randRange(rng, 5, 12.5);
-              const HPH = randRange(rng, zoneParam.hMin, zoneParam.hMax);
-              const gapPH = randRange(rng, 1, 2);
-              if (cursorPos + u(WPH) > edgeLen / 2) break;
-              let bxPos, bzPos;
-              if (edge === "north") {
-                bxPos = block.cx + cursorPos + u(WPH) / 2;
-                bzPos = block.cz + block.netD / 2 - u(DPH) / 2;
-              } else if (edge === "south") {
-                bxPos = block.cx + cursorPos + u(WPH) / 2;
-                bzPos = block.cz - block.netD / 2 + u(DPH) / 2;
-              } else if (edge === "east") {
-                bxPos = block.cx + block.netW / 2 - u(DPH) / 2;
-                bzPos = block.cz + cursorPos + u(WPH) / 2;
-              } else {
-                bxPos = block.cx - block.netW / 2 + u(DPH) / 2;
-                bzPos = block.cz + cursorPos + u(WPH) / 2;
-              }
-              addBuilding(batch, block, edge, { x: bxPos, z: bzPos }, WPH, DPH, HPH, block.zone, rng, auditRecords, block.isMain);
-              buildingCount++;
-              cursorPos += u(WPH + gapPH);
-            }
-          }
-          const furnLimit = typeof Q !== "undefined" && typeof Q.streetFurnitureTypes === "number" ? Q.streetFurnitureTypes : 12;
-          const furnDefs = FURNITURE_DEFS.slice(0, furnLimit);
-          const spacingMult = typeof Q !== "undefined" && Q.level === "L0" ? 4 : Q.level === "L1" ? 2.5 : Q.level === "L2" ? 1.2 : 1;
-          for (const def of furnDefs) {
-            if (block.zone === "park") continue;
-            if (def.type === "guard" && !block.isMain) continue;
-            if (def.type === "pole" && block.zone !== "oldtown" && rng() > 0.3) continue;
-            const spacingWorld = u(def.spacing * spacingMult);
-            const jitter = 0.15;
-            const phase = rng() * spacingWorld;
-            for (const edge of edges) {
-              const isHorizontal = edge === "north" || edge === "south";
-              const edgeLen = isHorizontal ? block.netW : block.netD;
-              const steps = Math.floor(edgeLen / spacingWorld);
-              for (let s = 0; s < steps; s++) {
-                if (rng() < 0.3) continue;
-                const offset = s * spacingWorld + phase + (rng() - 0.5) * spacingWorld * jitter;
-                if (Math.abs(offset) > edgeLen / 2 - u(1)) continue;
-                let fx2, fz, yaw = 0;
-                const dist = u(def.dist);
-                if (edge === "north") {
-                  fx2 = block.cx + offset;
-                  fz = block.cz + block.netD / 2 + sidewalkW / 2;
-                  yaw = 0;
-                } else if (edge === "south") {
-                  fx2 = block.cx + offset;
-                  fz = block.cz - block.netD / 2 - sidewalkW / 2;
-                  yaw = Math.PI;
-                } else if (edge === "east") {
-                  fx2 = block.cx + block.netW / 2 + sidewalkW / 2;
-                  fz = block.cz + offset;
-                  yaw = Math.PI / 2;
-                } else {
-                  fx2 = block.cx - block.netW / 2 - sidewalkW / 2;
-                  fz = block.cz + offset;
-                  yaw = -Math.PI / 2;
-                }
-                fx2 += Math.cos(yaw) * dist * 0.2;
-                fz += Math.sin(yaw) * dist * 0.2;
-                addFurniture(batch, def, fx2, fz, yaw, rng, auditRecords);
-              }
-            }
-          }
-          if (block.zone !== "park" && rng() < 0.7) {
-            const carRange = typeof Q !== "undefined" && Q.level === "L0" ? [0, 1] : Q.level === "L1" ? [1, 2] : [1, 3];
-            const carCount = randInt(rng, carRange[0], carRange[1]);
-            for (let c = 0; c < carCount; c++) {
-              const side = choice(rng, ["north", "south", "east", "west"]);
-              const offset = (rng() - 0.5) * (side === "north" || side === "south" ? block.netW : block.netD) * 0.6;
-              let cx, cz, yaw;
-              if (side === "north") {
-                cx = block.cx + offset;
-                cz = block.cz + block.netD / 2 + sidewalkW + u(1.5);
-                yaw = 0;
-              } else if (side === "south") {
-                cx = block.cx + offset;
-                cz = block.cz - block.netD / 2 - sidewalkW - u(1.5);
-                yaw = Math.PI;
-              } else if (side === "east") {
-                cx = block.cx + block.netW / 2 + sidewalkW + u(1.5);
-                cz = block.cz + offset;
-                yaw = Math.PI / 2;
-              } else {
-                cx = block.cx - block.netW / 2 - sidewalkW - u(1.5);
-                cz = block.cz + offset;
-                yaw = -Math.PI / 2;
-              }
-              addCar(batch, cx, cz, yaw, rng, auditRecords);
-            }
-          }
-          if (isMainRoad(bx) && isMainRoad(bz)) {
-            const zebraRect = getAtlasRect(13);
-            const ix = u((bx - grid2 / 2) * CFG.BLOCK_PITCH);
-            const iz = u((bz - grid2 / 2) * CFG.BLOCK_PITCH);
-            const zw = u(3), zl = u(1);
-            for (let dir = 0; dir < 4; dir++) {
-              const ang = dir * Math.PI / 2;
-              const px = ix + Math.cos(ang) * u(4);
-              const pz = iz + Math.sin(ang) * u(4);
-              batch.addQuad({ x: px - zw / 2, y: 2e-3, z: pz - zl / 2 }, { x: px + zw / 2, y: 2e-3, z: pz - zl / 2 }, { x: px + zw / 2, y: 2e-3, z: pz + zl / 2 }, { x: px - zw / 2, y: 2e-3, z: pz + zl / 2 }, zebraRect, [1, 1, 1], [0, 1, 0]);
-            }
-          }
+          const usedCombos = /* @__PURE__ */ new Set();
+          const blockFill = { area: 0, count: 0 };
+          generateBlockFacades(block, batch, rng, auditRecords, usedCombos, blockFill);
+          buildingCount += blockFill.count;
+          const netArea = block.netW * block.netD;
+          const fillRate = blockFill.area / netArea;
+          blockFills.push({ bx: block.bx, bz: block.bz, zone: block.zone, area: blockFill.area, netArea, fillRate, count: blockFill.count, netWPH: block.netWPH, netDPH: block.netDPH });
         }
       }
       const stats2 = batch.getStats();
@@ -422546,7 +422263,6 @@ function buildCity(scene, opts = {}) {
             mesh.receiveShadows = true;
           }
         } catch (e) {
-          console.warn("[city] tile mesh failed", e);
         }
       }
       tiles.push({
@@ -422565,71 +422281,51 @@ function buildCity(scene, opts = {}) {
     }
   }
   const landmarks = [];
-  {
-    const towerH = u(120), towerR = u(0.5);
-    const tx = u(30), tz = u(10);
-    const batch = new GeoBatch();
-    const metalRect = getAtlasRect(8);
-    batch.addCylinder(tx, 0, tz, towerR, towerH * 0.8, 8, metalRect, [0.7, 0.7, 0.75]);
-    batch.addCylinder(tx, towerH * 0.7, tz, u(3), u(0.5), 12, metalRect, [0.8, 0.8, 0.85]);
-    batch.addCylinder(tx, towerH * 0.8, tz, u(0.1), towerH * 0.2, 6, metalRect, [0.6, 0.6, 0.65]);
-    addSolidCylinder(batch, tx, tz, towerR, towerH, 0, 8, metalRect, [0.7, 0.7, 0.75], "build", auditRecords);
-    landmarks.push({ type: "tvTower", x: tx, z: tz, h: towerH, batch });
-  }
-  {
-    const towerH = u(45);
-    const cx = u(5), cz = u(5);
-    const batch = new GeoBatch();
-    const brickRect = getAtlasRect(6);
-    addSolid(batch, cx, cz, u(4), u(4), towerH, 0, 0, brickRect, [0.8, 0.75, 0.7], "build", auditRecords);
-    const signRect = getAtlasRect(10);
-    batch.addBox(cx, towerH * 0.8, cz + u(2.1), u(1.5), u(1.5), u(0.1), 0, signRect, [1, 1, 1]);
-    batch.addCylinder(cx, towerH, cz, u(0.1), u(3), 4, brickRect, [0.6, 0.3, 0.2]);
-    landmarks.push({ type: "clockTower", x: cx, z: cz, h: towerH, batch });
-  }
   let skylineMesh = null;
   if (scene && typeof window !== "undefined" && window.BABYLON) {
     try {
       const BABYLON3 = window.BABYLON;
-      const skylineR = CFG.SKYLINE_R;
-      const skylineBatch = new GeoBatch();
       const silhouetteRect = getAtlasRect(14);
-      const silhouetteColor = hexToRgb("#5a6a86");
-      const rng = mulberry32(seed + 999);
-      const count = 80;
-      for (let i = 0; i < count; i++) {
-        const ang = i / count * Math.PI * 2 + (rng() - 0.5) * 0.1;
-        const r = skylineR + (rng() - 0.5) * 5;
-        const x = Math.cos(ang) * r;
-        const z = Math.sin(ang) * r;
-        const w = u(randRange(rng, 3, 8));
-        const h = u(randRange(rng, 8, 20));
-        const d = u(randRange(rng, 3, 6));
-        skylineBatch.addBox(x, h / 2, z, w, h, d, -ang, silhouetteRect, silhouetteColor);
+      for (let layer = 0; layer < 2; layer++) {
+        const skylineBatch = new GeoBatch();
+        const skylineR = CFG.SKYLINE_R + layer * 15;
+        const col = layer === 0 ? hexToRgb("#3a4a6a") : hexToRgb("#5a6a86");
+        const rng = mulberry32(seed + 999 + layer * 100);
+        const count = layer === 0 ? 60 : 80;
+        for (let i = 0; i < count; i++) {
+          const ang = i / count * Math.PI * 2 + (rng() - 0.5) * 0.1;
+          const r = skylineR + (rng() - 0.5) * 5;
+          const x = Math.cos(ang) * r;
+          const z = Math.sin(ang) * r;
+          const w = u(randRange(rng, 3, 8));
+          const h = u(randRange(rng, 8, 20) + layer * 5);
+          const d = u(randRange(rng, 3, 6));
+          skylineBatch.addBox(x, h / 2, z, w, h, d, -ang, silhouetteRect, col);
+        }
+        const mesh = new BABYLON3.Mesh(`skylineRing_${layer}`, scene);
+        const vd = new BABYLON3.VertexData();
+        vd.positions = skylineBatch.pos;
+        vd.normals = skylineBatch.nrm;
+        vd.uvs = skylineBatch.uv;
+        vd.colors = skylineBatch.col;
+        vd.indices = skylineBatch.idx;
+        vd.applyToMesh(mesh, false);
+        const mat = new BABYLON3.StandardMaterial(`skylineMat_${layer}`, scene);
+        mat.diffuseColor = new BABYLON3.Color3(col[0], col[1], col[2]);
+        mat.emissiveColor = new BABYLON3.Color3(col[0] * 0.2, col[1] * 0.2, col[2] * 0.3);
+        mat.backFaceCulling = false;
+        mesh.material = mat;
+        mesh.isPickable = false;
+        if (layer === 0) skylineMesh = mesh;
       }
-      const mesh = new BABYLON3.Mesh("skylineRing", scene);
-      const vd = new BABYLON3.VertexData();
-      vd.positions = skylineBatch.pos;
-      vd.normals = skylineBatch.nrm;
-      vd.uvs = skylineBatch.uv;
-      vd.colors = skylineBatch.col;
-      vd.indices = skylineBatch.idx;
-      vd.applyToMesh(mesh, false);
-      const mat = new BABYLON3.StandardMaterial("skylineMat", scene);
-      mat.diffuseColor = new BABYLON3.Color3(0.35, 0.42, 0.52);
-      mat.emissiveColor = new BABYLON3.Color3(0.1, 0.12, 0.15);
-      mat.backFaceCulling = false;
-      mesh.material = mat;
-      mesh.isPickable = false;
-      skylineMesh = mesh;
     } catch (e) {
-      console.warn("[city] skyline failed", e);
     }
   }
   const endTime = performance.now();
   const genTime = endTime - startTime;
   let floating = [], sinking = [];
   for (const rec of auditRecords) {
+    if (rec.type !== "build" && rec.type !== "curb") continue;
     const diff = rec.minY - rec.expectedYBase;
     if (diff > 0.01) floating.push(rec);
     if (diff < -0.01) sinking.push(rec);
@@ -422643,7 +422339,8 @@ function buildCity(scene, opts = {}) {
     genTime,
     atlasSize: Q.atlasSize,
     floatingCount: floating.length,
-    sinkingCount: sinking.length
+    sinkingCount: sinking.length,
+    blockFills
   };
   return {
     tiles,
@@ -422656,7 +422353,8 @@ function buildCity(scene, opts = {}) {
     auditRecords,
     floating,
     sinking,
-    center: { x: 0, z: 0 }
+    center: { x: 0, z: 0 },
+    blockFills
   };
 }
 function updateCityCulling(playerPos, city) {
@@ -422669,7 +422367,22 @@ function updateCityCulling(playerPos, city) {
     const dz = tile.centerZ - playerPos.z;
     const d2 = dx * dx + dz * dz;
     const shouldShow = d2 <= cull2;
-    if (tile.mesh.isEnabled() !== shouldShow) tile.mesh.setEnabled(shouldShow);
+    try {
+      if (tile.mesh.isEnabled() !== shouldShow) tile.mesh.setEnabled(shouldShow);
+    } catch (e) {
+    }
+  }
+  try {
+    if (city && city._skyMesh && playerPos && city._skyMesh.position) {
+      city._skyMesh.position.set(playerPos.x, playerPos.y, playerPos.z);
+    }
+    if (typeof window !== "undefined" && window.BABYLON) {
+      const scene = city && city.tiles && city.tiles[0] && city.tiles[0].mesh && city.tiles[0].mesh.getScene ? city.tiles[0].mesh.getScene() : null;
+      if (scene && scene._skyMesh && scene._skyMesh.position) {
+        scene._skyMesh.position.set(playerPos.x, playerPos.y, playerPos.z);
+      }
+    }
+  } catch (e) {
   }
 }
 function setupSkyAndLights(scene, opts = {}) {
@@ -422677,19 +422390,25 @@ function setupSkyAndLights(scene, opts = {}) {
   try {
     const BABYLON3 = window.BABYLON;
     if (!BABYLON3) return null;
-    const skySize = 256;
+    const skySize = 512;
     const skyCanvas = document.createElement("canvas");
     skyCanvas.width = 16;
     skyCanvas.height = skySize;
     const sctx = skyCanvas.getContext("2d");
     const grad = sctx.createLinearGradient(0, 0, 0, skySize);
     grad.addColorStop(0, "#1b2a4a");
-    grad.addColorStop(0.5, "#6b5b7a");
+    grad.addColorStop(0.3, "#2a3a5a");
+    grad.addColorStop(0.6, "#6b5b7a");
+    grad.addColorStop(0.85, "#c48a5a");
     grad.addColorStop(1, "#e0a878");
     sctx.fillStyle = grad;
     sctx.fillRect(0, 0, 16, skySize);
-    sctx.fillStyle = "rgba(255,255,255,0.15)";
-    sctx.fillRect(0, skySize * 0.7, 16, 20);
+    sctx.fillStyle = "rgba(255,255,255,0.12)";
+    sctx.fillRect(0, skySize * 0.25, 16, 18);
+    sctx.fillStyle = "rgba(255,255,255,0.08)";
+    sctx.fillRect(0, skySize * 0.45, 16, 12);
+    sctx.fillStyle = "rgba(255,255,255,0.10)";
+    sctx.fillRect(0, skySize * 0.65, 16, 15);
     const skyTex = new BABYLON3.DynamicTexture("skyGrad", skyCanvas, scene, false);
     skyTex.wrapU = BABYLON3.Texture.WRAP_ADDRESSMODE;
     skyTex.wrapV = BABYLON3.Texture.CLAMP_ADDRESSMODE;
@@ -422699,23 +422418,32 @@ function setupSkyAndLights(scene, opts = {}) {
     skyMat.emissiveColor = new BABYLON3.Color3(1, 1, 1);
     skyMat.backFaceCulling = false;
     skyMat.disableLighting = true;
-    const skyMesh = BABYLON3.MeshBuilder.CreateSphere("skySphere", { diameter: 200, segments: 16 }, scene);
+    const skyMesh = BABYLON3.MeshBuilder.CreateSphere("skySphere", { diameter: 400, segments: 16 }, scene);
     skyMesh.material = skyMat;
     skyMesh.isPickable = false;
     skyMesh.infiniteDistance = true;
+    skyMesh.renderingGroupId = 0;
     scene.fogMode = BABYLON3.Scene.FOGMODE_EXP2;
-    scene.fogColor = new BABYLON3.Color3(0.79, 0.64, 0.48);
-    scene.fogDensity = CFG.FOG_DENSITY;
+    scene.fogColor = new BABYLON3.Color3(0.2, 0.24, 0.33);
+    scene.fogDensity = 0.01;
+    try {
+      const sunMesh = BABYLON3.MeshBuilder.CreateDisc("sunDisc", { radius: 8, tessellation: 32 }, scene);
+      sunMesh.position = new BABYLON3.Vector3(150, 80, -120);
+      sunMesh.rotation.x = Math.PI / 2;
+      const sunMat = new BABYLON3.StandardMaterial("sunMat", scene);
+      sunMat.emissiveColor = new BABYLON3.Color3(1, 0.9, 0.6);
+      sunMat.diffuseColor = new BABYLON3.Color3(1, 0.9, 0.6);
+      sunMat.disableLighting = true;
+      sunMesh.material = sunMat;
+      sunMesh.isPickable = false;
+    } catch (e) {
+    }
     const sunDir = new BABYLON3.Vector3(Math.cos(200 * Math.PI / 180) * Math.cos(8 * Math.PI / 180), -Math.sin(8 * Math.PI / 180), Math.sin(200 * Math.PI / 180) * Math.cos(8 * Math.PI / 180));
     let dirLight = scene.lights ? scene.lights.find((l) => l.name === "dir") : null;
     if (!dirLight) dirLight = new BABYLON3.DirectionalLight("sun", sunDir, scene);
     else dirLight.direction = sunDir;
-    dirLight.intensity = 2.2;
+    dirLight.intensity = 1.8;
     dirLight.diffuse = new BABYLON3.Color3(1, 0.84, 0.66);
-    if (dirLight) {
-      dirLight.shadowMinZ = 0.5;
-      dirLight.shadowMaxZ = 60;
-    }
     let hemi = scene.lights ? scene.lights.find((l) => l.name === "hemi") : null;
     if (!hemi) hemi = new BABYLON3.HemisphericLight("hemiSky", new BABYLON3.Vector3(0, 1, 0), scene);
     hemi.intensity = 0.35;
@@ -422728,6 +422456,7 @@ function setupSkyAndLights(scene, opts = {}) {
     fill.diffuse = new BABYLON3.Color3(0.8, 0.8, 0.9);
     scene.clearColor = new BABYLON3.Color4(0.13, 0.14, 0.17, 1);
     scene.ambientColor = new BABYLON3.Color3(0.35, 0.35, 0.38);
+    if (scene) scene._skyMesh = skyMesh;
     return { skyMesh, dirLight, hemiLight: hemi, fillLight: fill };
   } catch (e) {
     console.warn("[city] sky/lights failed", e);
@@ -422736,6 +422465,8 @@ function setupSkyAndLights(scene, opts = {}) {
 }
 
 // src/game/player.js
+var IS_PC_BUILD = true;
+var GAME_TGT = true ? "pc" : Q.gameTarget || "android";
 function createPlayer(scene, opts = {}) {
   const BABYLON3 = typeof window !== "undefined" && window.BABYLON ? window.BABYLON : null;
   const R = WORLD.RADIUS;
@@ -422750,10 +422481,13 @@ function createPlayer(scene, opts = {}) {
   let camera;
   if (BABYLON3) {
     camera = new BABYLON3.UniversalCamera("cityPlayerCam", new BABYLON3.Vector3(0, EYE, 0), scene);
-    camera.fov = 0.9;
+    camera.fov = IS_PC_BUILD ? 0.95 : 0.9;
     camera.minZ = 5e-4;
-    camera.maxZ = 163;
+    camera.maxZ = IS_PC_BUILD ? 250 : 163;
     camera.inertia = 0;
+    if (GAME_TGT === "pc") {
+      camera.speed = 1.2;
+    }
   } else {
     camera = { position: { x: 0, y: EYE, z: 0 }, rotation: { x: 0, y: 0, z: 0 } };
   }
@@ -422763,27 +422497,19 @@ function createPlayer(scene, opts = {}) {
   let onGround = true;
   let yaw = 0;
   let pitch = 0;
-  let yawRate = 0;
-  let pitchRate = 0;
-  let yawRateTarget = 0;
-  let pitchRateTarget = 0;
-  let SENS_H = 1;
-  let SENS_V = 1;
-  let MAX_RATE_DEG = 240;
-  let INERTIA = 0.15;
+  let sens = 1;
+  let invertY = false;
   try {
-    const saved = JSON.parse(localStorage.getItem("game_input") || "null");
+    const saved = JSON.parse(localStorage.getItem("game_look") || "null");
     if (saved) {
-      if (typeof saved.sensH === "number") SENS_H = saved.sensH;
-      if (typeof saved.sensV === "number") SENS_V = saved.sensV;
-      if (typeof saved.maxRate === "number") MAX_RATE_DEG = saved.maxRate;
-      if (typeof saved.inertia === "number") INERTIA = saved.inertia;
+      if (typeof saved.sens === "number") sens = saved.sens;
+      if (typeof saved.invertY === "boolean") invertY = saved.invertY;
     }
   } catch (e) {
   }
-  function saveInputCfg() {
+  function saveLook() {
     try {
-      localStorage.setItem("game_input", JSON.stringify({ sensH: SENS_H, sensV: SENS_V, maxRate: MAX_RATE_DEG, inertia: INERTIA }));
+      localStorage.setItem("game_look", JSON.stringify({ sens, invertY }));
     } catch (e) {
     }
   }
@@ -422794,7 +422520,7 @@ function createPlayer(scene, opts = {}) {
   let rollCooldown = 0;
   let headBobPhase = 0;
   let landingShake = 0;
-  let input = { moveX: 0, moveZ: 0, lookDX: 0, lookDY: 0, lookNormX: 0, lookNormY: 0, hasLook: false, jump: false, crouch: false, roll: false, run: false };
+  let input = { moveX: 0, moveZ: 0, lookDX: 0, lookDY: 0, jump: false, crouch: false, roll: false, run: false };
   function findSpawn() {
     const rng = () => Math.random();
     for (let i = 0; i < 20; i++) {
@@ -422819,10 +422545,6 @@ function createPlayer(scene, opts = {}) {
     setOnGround(true);
     yaw = Math.atan2(-pos.x, -pos.z);
     pitch = 0;
-    yawRate = 0;
-    pitchRate = 0;
-    yawRateTarget = 0;
-    pitchRateTarget = 0;
     if (BABYLON3 && camera) {
       camera.position.set(pos.x, pos.y + (isCrouching ? EYE * 0.55 : EYE), pos.z);
       camera.rotation.set(pitch, yaw, 0);
@@ -422830,105 +422552,81 @@ function createPlayer(scene, opts = {}) {
     return pos;
   }
   function resetView() {
-    yawRate = 0;
-    pitchRate = 0;
-    yawRateTarget = 0;
-    pitchRateTarget = 0;
     yaw = Math.atan2(-pos.x, -pos.z);
     pitch = 0;
   }
+  function applyLookDelta(dx, dy, s = sens, inv = invertY) {
+    const sensUse = s;
+    let ddx = dx * 6e-3 * sensUse;
+    const lim = 0.03 * sensUse;
+    if (ddx > lim) ddx = lim;
+    if (ddx < -lim) ddx = -lim;
+    yaw += ddx;
+    if (dy !== 0) {
+      let ddy = dy * 4e-3 * sensUse;
+      if (ddy > lim) ddy = lim;
+      if (ddy < -lim) ddy = -lim;
+      if (inv) ddy = -ddy;
+      pitch += ddy;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+    }
+    return { yaw, pitch, ddx };
+  }
   function update(dt, inp, giantPos = null, giantFeet = null) {
     dt = Math.min(0.05, dt);
+    let rawDX = 0, rawDY = 0;
     if (inp) {
       if (typeof inp.moveX === "number") input.moveX = inp.moveX;
       if (typeof inp.moveZ === "number") input.moveZ = inp.moveZ;
-      if (typeof inp.lookNormX === "number") {
-        input.lookNormX = inp.lookNormX;
-        input.lookNormY = inp.lookNormY || 0;
-        input.hasLook = inp.hasLook !== void 0 ? !!inp.hasLook : true;
-      } else {
-        if (inp.lookDX) {
-          if (Math.abs(inp.lookDX) >= 2) {
-            input.lookNormX = Math.max(-1, Math.min(1, inp.lookDX / 100));
-            input.hasLook = true;
-          }
-        }
-        if (inp.lookDY) {
-          if (Math.abs(inp.lookDY) >= 2) {
-            input.lookNormY = Math.max(-1, Math.min(1, inp.lookDY / 100));
-            input.hasLook = true;
-          }
-        }
+      if (typeof inp.lookDX === "number" && inp.lookDX !== 0) {
+        input.lookDX += inp.lookDX;
+        rawDX = inp.lookDX;
+        inp.lookDX = 0;
+      }
+      if (typeof inp.lookDY === "number" && inp.lookDY !== 0) {
+        input.lookDY += inp.lookDY;
+        rawDY = inp.lookDY;
+        inp.lookDY = 0;
       }
       if (typeof inp.crouch === "boolean") input.crouch = inp.crouch;
       if (inp.jump) input.jump = true;
       if (inp.roll) input.roll = true;
       if (typeof inp.run === "boolean") input.run = inp.run;
+      if (typeof inp.sens === "number") {
+        sens = inp.sens;
+        saveLook();
+      }
+      if (typeof inp.invertY === "boolean") {
+        invertY = inp.invertY;
+        saveLook();
+      }
       if (typeof inp.sensH === "number") {
-        SENS_H = inp.sensH;
-        saveInputCfg();
-      }
-      if (typeof inp.sensV === "number") {
-        SENS_V = inp.sensV;
-        saveInputCfg();
-      }
-      if (typeof inp.maxRate === "number") {
-        MAX_RATE_DEG = inp.maxRate;
-        saveInputCfg();
-      }
-      if (typeof inp.inertia === "number") {
-        INERTIA = inp.inertia;
-        saveInputCfg();
+        sens = inp.sensH;
+        saveLook();
       }
       if (inp.resetView) {
         resetView();
         inp.resetView = false;
       }
-      if (inp.clearLook) {
-        input.lookNormX = 0;
-        input.lookNormY = 0;
-        input.hasLook = false;
-        yawRateTarget = 0;
-        pitchRateTarget = 0;
-        yawRate = 0;
-        pitchRate = 0;
-      }
     }
-    const MAX_RATE_RAD = MAX_RATE_DEG * Math.PI / 180;
-    const TAU = 0.05 + INERTIA * 0.25;
-    const TAU_STOP = 0.04 + INERTIA * 0.08;
-    if (input.hasLook) {
-      yawRateTarget = input.lookNormX * SENS_H * MAX_RATE_RAD;
-      pitchRateTarget = input.lookNormY * SENS_V * MAX_RATE_RAD;
-    } else {
-      yawRateTarget = 0;
-      pitchRateTarget = 0;
+    if (input.lookDX !== 0) {
+      let ddx = input.lookDX * 6e-3 * sens;
+      const lim = 0.03 * sens;
+      if (ddx > lim) ddx = lim;
+      if (ddx < -lim) ddx = -lim;
+      yaw += ddx;
     }
-    const alpha = 1 - Math.exp(-dt / Math.max(1e-3, TAU));
-    yawRate += (yawRateTarget - yawRate) * alpha;
-    pitchRate += (pitchRateTarget - pitchRate) * alpha;
-    if (!input.hasLook) {
-      const decay = Math.exp(-dt / Math.max(1e-3, TAU_STOP));
-      yawRate *= decay;
-      pitchRate *= decay;
-      if (Math.abs(yawRate) < 1e-3) yawRate = 0;
-      if (Math.abs(pitchRate) < 1e-3) pitchRate = 0;
+    if (input.lookDY !== 0) {
+      let ddy = input.lookDY * 4e-3 * sens;
+      const lim = 0.03 * sens;
+      if (ddy > lim) ddy = lim;
+      if (ddy < -lim) ddy = -lim;
+      if (invertY) ddy = -ddy;
+      pitch += ddy;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
     }
-    yawRate = Math.max(-MAX_RATE_RAD, Math.min(MAX_RATE_RAD, yawRate));
-    pitchRate = Math.max(-MAX_RATE_RAD, Math.min(MAX_RATE_RAD, pitchRate));
-    yaw += yawRate * dt;
-    pitch += pitchRate * dt;
-    pitch = Math.max(-1.2, Math.min(1.2, pitch));
-    input.lookNormX = 0;
-    input.lookNormY = 0;
-    input.hasLook = false;
-    if (giantFeet && giantPos) {
-      const dist = Math.hypot(pos.x - giantPos.x, pos.z - giantPos.z);
-      if (dist < u(400)) {
-        const targetPitch = -0.15;
-        pitch = pitch * 0.95 + targetPitch * 0.05;
-      }
-    }
+    input.lookDX = 0;
+    input.lookDY = 0;
     isCrouching = !!input.crouch;
     if (rollCooldown > 0) rollCooldown -= dt;
     if (input.roll && rollCooldown <= 0 && !isRolling) {
@@ -423008,7 +422706,8 @@ function createPlayer(scene, opts = {}) {
     let camY = pos.y + eyeH;
     let camZ = pos.z;
     if (headBobPhase !== 0) {
-      const bobAmp = isCrouching ? u(0.01) : moveMag > RUN * 0.8 ? u(0.04) : u(0.02);
+      const bobBase = isCrouching ? 0.01 : moveMag > RUN * 0.8 ? 0.04 : 0.02;
+      const bobAmp = u(IS_PC_BUILD ? bobBase * 1.2 : bobBase);
       camY += Math.sin(headBobPhase) * bobAmp;
       camX += Math.cos(headBobPhase * 0.5) * bobAmp * 0.3;
     }
@@ -423028,9 +422727,8 @@ function createPlayer(scene, opts = {}) {
       vel: { ...vel, y: vy },
       yaw,
       pitch,
-      yawRate,
-      pitchRate,
-      yawRateDeg: yawRate * 180 / Math.PI,
+      sens,
+      invertY,
       onGround,
       isCrouching,
       isRolling,
@@ -423055,24 +422753,20 @@ function createPlayer(scene, opts = {}) {
     get pitch() {
       return pitch;
     },
-    get yawRate() {
-      return yawRate;
-    },
     update,
     respawn,
     resetView,
+    applyLookDelta,
     setInput: (inp) => {
       input = { ...input, ...inp };
     },
-    getState: () => ({ pos, vel, vy, onGround, isCrouching, isRolling, yaw, pitch, yawRate }),
-    setSensitivity: (h, v, maxRate, inertia) => {
-      if (typeof h === "number") SENS_H = h;
-      if (typeof v === "number") SENS_V = v;
-      if (typeof maxRate === "number") MAX_RATE_DEG = maxRate;
-      if (typeof inertia === "number") INERTIA = inertia;
-      saveInputCfg();
+    getState: () => ({ pos, vel, vy, onGround, isCrouching, isRolling, yaw, pitch, sens, invertY }),
+    setSensitivity: (s, inv) => {
+      if (typeof s === "number") sens = s;
+      if (typeof inv === "boolean") invertY = inv;
+      saveLook();
     },
-    getInputCfg: () => ({ sensH: SENS_H, sensV: SENS_V, maxRate: MAX_RATE_DEG, inertia: INERTIA })
+    getInputCfg: () => ({ sens, invertY })
   };
 }
 
@@ -423091,6 +422785,8 @@ var BONE_NAMES = {
   center: ["\u30BB\u30F3\u30BF\u30FC"],
   armL: ["\u5DE6\u8155"],
   armR: ["\u53F3\u8155"],
+  elbowL: ["\u5DE6\u3072\u3058"],
+  elbowR: ["\u53F3\u3072\u3058"],
   shoulderL: ["\u5DE6\u80A9"],
   shoulderR: ["\u53F3\u80A9"],
   eyeL: ["\u5DE6\u76EE"],
@@ -423124,7 +422820,7 @@ function createGiant(mmd, opts = {}) {
   const mmdModel = mmd.mmdModel || null;
   const bones = {
     head: findBone(skeleton, BONE_NAMES.head),
-    neck: findBone(skeleton, ["\u9996"]),
+    neck: findBone(skeleton, BONE_NAMES.neck),
     upper: findBone(skeleton, BONE_NAMES.upper),
     lower: findBone(skeleton, BONE_NAMES.lower),
     footL: findBone(skeleton, BONE_NAMES.footL),
@@ -423134,6 +422830,8 @@ function createGiant(mmd, opts = {}) {
     center: findBone(skeleton, BONE_NAMES.center),
     armL: findBone(skeleton, BONE_NAMES.armL),
     armR: findBone(skeleton, BONE_NAMES.armR),
+    elbowL: findBone(skeleton, BONE_NAMES.elbowL),
+    elbowR: findBone(skeleton, BONE_NAMES.elbowR),
     shoulderL: findBone(skeleton, BONE_NAMES.shoulderL),
     shoulderR: findBone(skeleton, BONE_NAMES.shoulderR),
     eyeL: findBone(skeleton, BONE_NAMES.eyeL),
@@ -423151,7 +422849,8 @@ function createGiant(mmd, opts = {}) {
   if (root && root.position) rootPos = { x: root.position.x, y: root.position.y, z: root.position.z };
   const footYHistory = [];
   const ROLL_WINDOW = 2.5;
-  let currentMotion = "idle";
+  let currentMotion = "walk";
+  let motionController = opts.motionController || null;
   const knowsPlayer = true;
   let isSeeingPlayer = true;
   let targetHeadPitch = 0, targetNeckPitch = 0, targetUpperPitch = 0;
@@ -423174,6 +422873,8 @@ function createGiant(mmd, opts = {}) {
     angry: ["\u6012\u308A", "angry", "\u53E3\u89D2\u4E0B\u3052"],
     troubled: ["\u56F0\u308B", "troubled"]
   };
+  const posHistory = [];
+  let stuckTimer = 0;
   function findMorph(nameList) {
     if (!mmdModel) return null;
     try {
@@ -423215,10 +422916,9 @@ function createGiant(mmd, opts = {}) {
   }
   function pickNextGaze(stateName, rng) {
     const r = rng();
-    if (stateName === "stompNear") return "player";
-    if (stateName === "stomp") return "feet";
-    if (stateName === "recover") return r < 0.5 ? "side" : "player";
-    if (stateName === "idle") return r < 0.3 ? "player" : "side";
+    if (stateName === "stomp_prepare" || stateName === "stomp") return "feet";
+    if (stateName === "stomp_recover") return r < 0.5 ? "side" : "player";
+    if (stateName.startsWith("idle")) return r < 0.3 ? "player" : "side";
     if (r < 0.45) return "player";
     if (r < 0.65) return "forward";
     if (r < 0.85) return "side";
@@ -423230,6 +422930,12 @@ function createGiant(mmd, opts = {}) {
     gazeTimer += dt;
     blinkTimer += dt;
     morphTimer += dt;
+    if (motionController && motionController.update) {
+      try {
+        motionController.update(dt);
+      } catch (e) {
+      }
+    }
     const feet = feetWorld();
     const fl = feet.left, fr = feet.right;
     if (fl && fr && root) {
@@ -423241,7 +422947,7 @@ function createGiant(mmd, opts = {}) {
       const isLNearGround = Math.abs(fl.y - rollingMin) < GROUND_TOL;
       const isRNearGround = Math.abs(fr.y - rollingMin) < GROUND_TOL;
       const airborne = !isLNearGround && !isRNearGround;
-      const canDrive = currentMotion === "walk" || state === "approach";
+      const canDrive = currentMotion === "walk" || currentMotion === "run" || state === "approach";
       if (!airborne && canDrive) {
         const support = fl.y <= fr.y ? fl : fr;
         const supportPrev = fl.y <= fr.y ? prevFootL : prevFootR;
@@ -423265,6 +422971,43 @@ function createGiant(mmd, opts = {}) {
       prevFootL = fl ? { ...fl } : null;
       prevFootR = fr ? { ...fr } : null;
     }
+    if (root && root.position) {
+      const now = performance.now() / 1e3;
+      posHistory.push({ t: now, x: root.position.x, z: root.position.z });
+      while (posHistory.length && now - posHistory[0].t > 3) posHistory.shift();
+      if (posHistory.length >= 2) {
+        const first = posHistory[0];
+        const last = posHistory[posHistory.length - 1];
+        const dx = last.x - first.x;
+        const dz = last.z - first.z;
+        const disp = Math.hypot(dx, dz);
+        const dispPH = disp / u(1);
+        if (dispPH < 5) {
+          stuckTimer += dt;
+        } else {
+          stuckTimer = 0;
+        }
+        if (stuckTimer >= 3) {
+          try {
+            if (collide && collide.clearFront) {
+              const yaw = root.rotation ? root.rotation.y : 0;
+              const fx2 = Math.sin(yaw) * u(2);
+              const fz = Math.cos(yaw) * u(2);
+              collide.clearFront(root.position.x + fx2, root.position.z + fz, u(2));
+            } else if (opts.city && opts.city.clearArea) {
+              const yaw = root.rotation ? root.rotation.y : 0;
+              const fx2 = Math.sin(yaw) * u(2);
+              const fz = Math.cos(yaw) * u(2);
+              opts.city.clearArea(root.position.x + fx2, root.position.z + fz, u(2));
+            }
+            console.log(`[giant] \u5361\u4F4F\u81EA\u6551\u89E6\u53D1 dispPH=${dispPH.toFixed(1)} \u6E05\u524D\u65B92\u5355\u4F4D`);
+          } catch (e) {
+          }
+          stuckTimer = 0;
+          posHistory.length = 0;
+        }
+      }
+    }
     if (playerPos) {
       targetPos = { ...playerPos };
       const toPlayer = { x: playerPos.x - rootPos.x, z: playerPos.z - rootPos.z };
@@ -423272,17 +423015,31 @@ function createGiant(mmd, opts = {}) {
       const distWorld = Math.hypot(toPlayer.x, toPlayer.z);
       switch (state) {
         case "approach":
-          if (distPH < 200) {
-            state = "stompNear";
+          if (distPH < 30) {
+            state = "stomp_prepare";
             stateTime = 0;
+            setMotion("stomp_prepare");
             setMorphWeight(morphNames.angry, 0.5);
             gazeState = "player";
             gazeTimer = 0;
             gazeDuration = 0.8;
+          } else {
+            if (stateTime > 10 + Math.random() * 10) {
+              const r = Math.random();
+              if (r < 0.15) {
+                state = "idle_a";
+                stateTime = 0;
+                setMotion("idle_a");
+              } else if (r < 0.25) {
+                state = "turn_in_place";
+                stateTime = 0;
+                setMotion("turn_in_place");
+              }
+            }
           }
           break;
-        case "stompNear":
-          if (stateTime >= 0.8) {
+        case "stomp_prepare":
+          if (stateTime >= 1.33) {
             state = "stomp";
             stateTime = 0;
             setMotion("stomp");
@@ -423290,15 +423047,15 @@ function createGiant(mmd, opts = {}) {
           }
           break;
         case "stomp":
-          if (stateTime > 2.5) {
-            state = "recover";
+          if (stateTime > 3) {
+            state = "stomp_recover";
             stateTime = 0;
-            setMotion("walk");
+            setMotion("stomp_recover");
             setMorphWeight(morphNames.troubled, 0.3);
           }
           break;
-        case "recover":
-          if (stateTime > 0.6) {
+        case "stomp_recover":
+          if (stateTime > 1.5) {
             state = "approach";
             stateTime = 0;
             setMotion("walk");
@@ -423306,20 +423063,53 @@ function createGiant(mmd, opts = {}) {
             setTimeout(() => setMorphWeight(morphNames.smile, 0), 600);
           }
           break;
+        case "idle_a":
+        case "idle_b":
+          if (stateTime > 4 + Math.random() * 2) {
+            state = "approach";
+            stateTime = 0;
+            setMotion("walk");
+          }
+          break;
+        case "turn_in_place":
+          if (stateTime > 1.5) {
+            state = "approach";
+            stateTime = 0;
+            setMotion("walk");
+          }
+          break;
         default:
-          state = "approach";
-          stateTime = 0;
-          setMotion("walk");
+          if (stateTime > 3) {
+            state = "approach";
+            stateTime = 0;
+            setMotion("walk");
+          }
       }
-      if (state === "approach" || state === "stompNear" || state === "stomp") {
-        const desiredYaw = Math.atan2(toPlayer.x, toPlayer.z);
+      if (state === "approach" || state === "stomp_prepare" || state === "stomp" || state === "idle_a") {
+        const desiredYaw = Math.atan2(-toPlayer.x, -toPlayer.z);
         let currentYaw = root.rotation ? root.rotation.y : 0;
         let diff = desiredYaw - currentYaw;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        const maxTurn = degToRad(20) * dt;
+        const maxTurn = degToRad(45) * dt;
         diff = Math.max(-maxTurn, Math.min(maxTurn, diff));
-        if (root.rotation) root.rotation.y += diff;
+        if (root.rotation) {
+          root.rotation.y += diff;
+        }
+      }
+      if (state === "approach") {
+        const len = Math.hypot(toPlayer.x, toPlayer.z);
+        if (len > 0.01) {
+          const nx = toPlayer.x / len;
+          const nz = toPlayer.z / len;
+          const distPH2 = len / u(1);
+          const speed = distPH2 > 200 ? u(40) : u(22);
+          root.position.x += nx * speed * dt;
+          root.position.z += nz * speed * dt;
+          root.position.y = 0;
+          rootPos.x = root.position.x;
+          rootPos.z = root.position.z;
+        }
       }
       const lookDown = calcLookDown(distPH);
       targetNeckPitch = degToRad(lookDown.neck);
@@ -423365,7 +423155,6 @@ function createGiant(mmd, opts = {}) {
     curHeadPitch += (targetHeadPitch - curHeadPitch) * alpha;
     curUpperPitch += (targetUpperPitch - curUpperPitch) * alpha;
     const eyeAlpha = 1 - Math.exp(-dt / 0.15);
-    const headAlpha = 1 - Math.exp(-dt / 0.4);
     eyeYaw += (targetEyeYaw - eyeYaw) * eyeAlpha;
     eyePitch += (targetEyePitch - eyePitch) * eyeAlpha;
     try {
@@ -423374,10 +423163,6 @@ function createGiant(mmd, opts = {}) {
         if (bones.head) {
           if (bones.head.rotation) {
             bones.head.rotation.x += curHeadPitch - (bones.head._lastAddedPitch || 0);
-            bones.head._lastAddedPitch = curHeadPitch;
-          } else if (bones.head.rotationQuaternion) {
-            const q = BABYLON3.Quaternion.RotationYawPitchRoll(0, curHeadPitch - (bones.head._lastAddedPitch || 0), 0);
-            bones.head.rotationQuaternion = bones.head.rotationQuaternion.multiply(q);
             bones.head._lastAddedPitch = curHeadPitch;
           }
         }
@@ -423431,7 +423216,7 @@ function createGiant(mmd, opts = {}) {
         setMorphWeight(morphNames.blink, w);
       }
     }
-    if (state === "stompNear" && stateTime > 0.8) {
+    if (state === "stomp_prepare" && stateTime > 0.8) {
       setMorphWeight(morphNames.angry, 0);
     }
     return {
@@ -423445,11 +423230,18 @@ function createGiant(mmd, opts = {}) {
       gazeState,
       headPitchDeg: curHeadPitch * 180 / Math.PI,
       eyeYawDeg: eyeYaw * 180 / Math.PI,
-      eyePitchDeg: eyePitch * 180 / Math.PI
+      eyePitchDeg: eyePitch * 180 / Math.PI,
+      motion: currentMotion
     };
   }
   function setMotion(slot) {
     currentMotion = slot;
+    if (motionController && motionController.setMotion) {
+      try {
+        motionController.setMotion(slot, 0.4);
+      } catch (e) {
+      }
+    }
     if (opts.onMotionChange) opts.onMotionChange(slot);
   }
   function getBones() {
@@ -423469,23 +423261,52 @@ function createGiant(mmd, opts = {}) {
     get rootPos() {
       return rootPos;
     },
-    feet: feetWorld
+    feet: feetWorld,
+    set motionController(mc) {
+      motionController = mc;
+    },
+    get motionController() {
+      return motionController;
+    }
   };
 }
 
 // src/game/motions.js
+var MOTION_FILES = [
+  "idle_a.vmd",
+  "idle_b.vmd",
+  "walk.vmd",
+  "run.vmd",
+  "turn_in_place.vmd",
+  "stomp_prepare.vmd",
+  "stomp.vmd",
+  "stomp_recover.vmd",
+  "crouch_look.vmd",
+  "kick.vmd",
+  "sweep_hand.vmd",
+  "grab_pinch.vmd",
+  "taunt_laugh.vmd",
+  "notice_you.vmd",
+  "lose_sight.vmd"
+];
+var MOTION_ALIAS = {
+  idle: "idle_a",
+  walk: "walk",
+  run: "run",
+  stomp: "stomp"
+};
 async function loadDefaultMotions(scene) {
-  const motions2 = { idle: null, walk: null, stomp: null };
-  const candidates = [
-    "./game/motions/",
-    "./motions/",
-    "./dist/motions/",
-    "/game/motions/"
-  ];
-  const files = ["idle.vmd", "walk.vmd", "stomp.vmd"];
+  const motions2 = {};
+  for (const f of MOTION_FILES) {
+    const key = f.replace(".vmd", "");
+    motions2[key] = null;
+  }
+  motions2["idle"] = null;
+  motions2["walk"] = null;
+  motions2["stomp"] = null;
   const BABYLON3 = typeof window !== "undefined" && window.BABYLON ? window.BABYLON : null;
   if (!BABYLON3) {
-    console.warn("[motions] BABYLON not found, \u8FD4\u56DE\u7A7A");
+    console.warn("[motions] BABYLON not found");
     return motions2;
   }
   let VmdLoader2;
@@ -423493,25 +423314,22 @@ async function loadDefaultMotions(scene) {
     const { VmdLoader: VL } = await Promise.resolve().then(() => (init_vmdLoader(), vmdLoader_exports));
     VmdLoader2 = VL;
   } catch (e) {
-    console.warn("[motions] \u65E0\u6CD5 import VmdLoader", e);
-    if (BABYLON3.MMD && BABYLON3.MMD.VmdLoader) {
-      VmdLoader2 = BABYLON3.MMD.VmdLoader;
-    }
+    if (BABYLON3.MMD && BABYLON3.MMD.VmdLoader) VmdLoader2 = BABYLON3.MMD.VmdLoader;
   }
   if (!VmdLoader2) {
-    console.warn("[motions] VmdLoader \u4E0D\u53EF\u7528");
+    console.warn("[motions] VmdLoader unavailable");
     return motions2;
   }
   const loader = new VmdLoader2(scene);
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+  const candidates = ["./game/motions/", "./motions/", "./dist/motions/", "/game/motions/"];
+  for (const file of MOTION_FILES) {
     const key = file.replace(".vmd", "");
     let loaded = null;
     for (const base of candidates) {
       const url = base + file;
       try {
         const anim = await loader.loadAsync("motion", url);
-        console.log(`[motions] loaded ${url} boneTracks=${anim.boneTracks?.length}`);
+        console.log(`[motions] loaded ${url} tracks=${anim.boneTracks?.length}`);
         loaded = anim;
         break;
       } catch (e) {
@@ -423519,61 +423337,174 @@ async function loadDefaultMotions(scene) {
     }
     motions2[key] = loaded;
   }
+  motions2["idle"] = motions2["idle_a"] || motions2["idle_b"];
+  motions2["walk"] = motions2["walk"];
+  motions2["stomp"] = motions2["stomp"];
+  motions2["run"] = motions2["run"];
   return motions2;
 }
 function createMotionController(mmdModel, motions2) {
-  let current = null;
-  let currentHandle = null;
-  let MmdCompositeAnimation2, MmdAnimationSpan2, MmdCompositeRuntimeModelAnimation2;
-  try {
-    if (typeof window !== "undefined" && window.BABYLON) {
-    }
-  } catch (e) {
-  }
-  async function setMotion(slot, fade = 0.4) {
-    const anim = motions2[slot] || motions2["idle"] || motions2["walk"];
-    if (!anim || !mmdModel) return;
+  let composite = null;
+  let runtime = null;
+  let globalTime = 0;
+  const active = /* @__PURE__ */ new Map();
+  let currentSlot = null;
+  let fadeDuration = 0.4;
+  let fadeTimer = 0;
+  let fading = false;
+  let fromSlot = null;
+  let toSlot = null;
+  let MCA, MAS, MCRMA;
+  let ready = false;
+  async function init2() {
+    if (ready) return;
     try {
-      const { MmdCompositeAnimation: MCA, MmdAnimationSpan: MAS } = await Promise.resolve().then(() => (init_mmdCompositeAnimation(), mmdCompositeAnimation_exports));
-      const { MmdCompositeRuntimeModelAnimation: MCRMA } = await Promise.resolve().then(() => (init_mmdCompositeRuntimeModelAnimation(), mmdCompositeRuntimeModelAnimation_exports));
-      if (MCA && MAS && MCRMA) {
-        const comp = new MCA(`${slot}-composite`);
-        comp.addSpan(new MAS(anim));
-        const handle = MCRMA.Create(comp, mmdModel);
-        if (currentHandle) {
-          try {
-            currentHandle.dispose && currentHandle.dispose();
-          } catch (e) {
+      const mod1 = await Promise.resolve().then(() => (init_mmdCompositeAnimation(), mmdCompositeAnimation_exports));
+      const mod2 = await Promise.resolve().then(() => (init_mmdCompositeRuntimeModelAnimation(), mmdCompositeRuntimeModelAnimation_exports));
+      MCA = mod1.MmdCompositeAnimation;
+      MAS = mod1.MmdAnimationSpan;
+      MCRMA = mod2.MmdCompositeRuntimeModelAnimation;
+      composite = new MCA("giant-composite");
+      runtime = MCRMA.Create(composite, mmdModel);
+      mmdModel.setRuntimeAnimation(runtime);
+      ready = true;
+      console.log("[motions] composite runtime created");
+    } catch (e) {
+      console.warn("[motions] composite init failed, fallback single", e);
+      ready = false;
+    }
+  }
+  init2();
+  function ensureSlot(slot) {
+    if (!ready || !composite || !MAS) return null;
+    const anim = motions2[slot] || motions2[MOTION_ALIAS[slot]] || motions2["idle_a"];
+    if (!anim) return null;
+    if (active.has(slot)) return active.get(slot);
+    const span = new MAS(anim, void 0, void 0, 0, 0);
+    composite.addSpan(span);
+    const entry = { span, localTime: 0, weight: 0, targetWeight: 0, anim };
+    active.set(slot, entry);
+    return entry;
+  }
+  function setMotion(slot, fade = 0.4) {
+    if (!slot) return;
+    if (MOTION_ALIAS[slot]) slot = MOTION_ALIAS[slot];
+    if (!motions2[slot] && motions2[MOTION_ALIAS[slot]]) slot = MOTION_ALIAS[slot];
+    if (currentSlot === slot && !fading) return;
+    fadeDuration = fade;
+    fadeTimer = 0;
+    fromSlot = currentSlot;
+    toSlot = slot;
+    fading = true;
+    const toEntry = ensureSlot(slot);
+    if (toEntry) {
+      toEntry.targetWeight = 1;
+      toEntry.localTime = 0;
+      toEntry.span.offset = globalTime - toEntry.localTime;
+      toEntry.span.weight = 0;
+    }
+    if (fromSlot) {
+      const fromEntry = active.get(fromSlot);
+      if (fromEntry) fromEntry.targetWeight = 0;
+    } else {
+      if (toEntry) {
+        toEntry.weight = 1;
+        toEntry.targetWeight = 1;
+        toEntry.span.weight = 1;
+        fading = false;
+        currentSlot = slot;
+        fromSlot = null;
+        toSlot = null;
+      }
+    }
+    if (!ready) {
+      try {
+        const anim = motions2[slot] || motions2["idle_a"];
+        if (anim && mmdModel) {
+          const handle = mmdModel.createRuntimeAnimation(anim);
+          mmdModel.setRuntimeAnimation(handle);
+          currentSlot = slot;
+          fading = false;
+        }
+      } catch (e) {
+        console.warn("[motions] fallback setMotion failed", e);
+      }
+    }
+  }
+  function update(dt) {
+    if (!ready || !composite) return;
+    globalTime += dt * 30;
+    fadeTimer += dt;
+    for (const [slot, entry] of active) {
+      const isLoop = slot.startsWith("idle") || slot === "walk" || slot === "run" || slot === "taunt_laugh" || slot === "crouch_look";
+      entry.localTime += dt * 30;
+      const len = entry.anim ? entry.anim.endFrame - entry.anim.startFrame : 120;
+      if (isLoop && len > 0) {
+        if (entry.localTime >= len) entry.localTime %= len;
+      } else {
+        if (entry.localTime > len) entry.localTime = len;
+      }
+      entry.span.offset = globalTime - entry.localTime;
+    }
+    if (fading) {
+      const t = Math.min(1, fadeTimer / fadeDuration);
+      const ease = 0.5 - 0.5 * Math.cos(Math.PI * t);
+      for (const [slot, entry] of active) {
+        if (slot === fromSlot) {
+          entry.weight = (1 - ease) * 1;
+          entry.span.weight = entry.weight;
+        } else if (slot === toSlot) {
+          entry.weight = ease * 1;
+          entry.span.weight = entry.weight;
+        } else {
+          entry.weight = Math.max(0, entry.weight - dt * 2);
+          entry.span.weight = entry.weight;
+        }
+      }
+      if (t >= 1) {
+        fading = false;
+        for (const [slot, entry] of Array.from(active.entries())) {
+          if (slot !== toSlot && entry.weight <= 0.01) {
+            try {
+              composite.removeSpan(entry.span);
+            } catch (e) {
+            }
+            active.delete(slot);
           }
         }
-        mmdModel.setRuntimeAnimation(handle);
-        currentHandle = handle;
-        current = slot;
-        return;
-      }
-    } catch (e) {
-      console.warn(`[motions] composite \u5931\u8D25\uFF0C\u9000\u5316\u5355\u52A8\u753B ${slot}`, e);
-    }
-    try {
-      const handle = mmdModel.createRuntimeAnimation(anim);
-      if (currentHandle) {
-        try {
-          mmdModel.setRuntimeAnimation(null);
-          currentHandle.dispose && currentHandle.dispose();
-        } catch (e) {
+        currentSlot = toSlot;
+        fromSlot = null;
+        toSlot = null;
+        const cur = active.get(currentSlot);
+        if (cur) {
+          cur.weight = 1;
+          cur.span.weight = 1;
+          cur.targetWeight = 1;
         }
       }
-      mmdModel.setRuntimeAnimation(handle);
-      currentHandle = handle;
-      current = slot;
-    } catch (e) {
-      console.error(`[motions] setMotion ${slot} \u5931\u8D25`, e);
+    } else {
+      for (const [slot, entry] of active) {
+        if (slot === currentSlot) {
+          entry.weight = 1;
+          entry.span.weight = 1;
+        } else {
+          entry.weight = 0;
+          entry.span.weight = 0;
+        }
+      }
     }
   }
   return {
     setMotion,
+    update,
     get current() {
-      return current;
+      return currentSlot;
+    },
+    get composite() {
+      return composite;
+    },
+    get runtime() {
+      return runtime;
     }
   };
 }
@@ -424090,18 +424021,24 @@ function createFx(scene, opts = {}) {
 }
 
 // src/game/hud.js
+var IS_PC_BUILD2 = true;
+var GAME_TGT2 = true ? "pc" : Q.gameTarget || "android";
 function createHud(rootEl, opts = {}) {
   if (!rootEl) {
     rootEl = document.createElement("div");
     rootEl.id = "gameUI";
     document.body.appendChild(rootEl);
   }
+  const pcBadge = IS_PC_BUILD2 ? " [PC]" : "";
+  const targetBadge = GAME_TGT2 ? ` ${GAME_TGT2}` : "";
   rootEl.innerHTML = `
     <style>
       #gameUI { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: -apple-system, sans-serif; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
       #gameUI .topBar { position: absolute; top: env(safe-area-inset-top, 0); left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: rgba(22,25,31,0.85); border-bottom: 1px solid #555; pointer-events: auto; transition: opacity 0.8s; }
       #gameUI .topBar button { background: #2a2f3f; color: #fff; border: 1px solid #555; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-right: 4px; }
       #gameUI .topBar .stats { color: #c9d1e0; font-size: 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      #gameUI .joystick { width: ${IS_PC_BUILD2 ? "140px" : "120px"}; height: ${IS_PC_BUILD2 ? "140px" : "120px"}; }
+    </style>
       #gameUI .centerAnnounce { position: absolute; top: calc(80px + env(safe-area-inset-top, 0)); left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: opacity 0.15s; text-align: center; max-width: 80%; }
       #gameUI .centerAnnounce.show { opacity: 1; }
       #gameUI .joystick { position: absolute; left: calc(24px + env(safe-area-inset-left, 0)); bottom: calc(24px + env(safe-area-inset-bottom, 0)); width: 120px; height: 120px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }
@@ -424111,16 +424048,12 @@ function createHud(rootEl, opts = {}) {
       #gameUI .actionBtns button { width: 64px; height: 64px; border-radius: 12px; border: 1px solid #555; background: rgba(40,46,58,0.88); color: #fff; font-size: 12px; font-weight: 700; }
       #gameUI .resultPanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: rgba(22,25,31,0.95); border: 1px solid #555; padding: 20px 24px; color: #fff; text-align: center; min-width: 280px; display: none; pointer-events: auto; }
       #gameUI .resultPanel.show { display: block; }
-      #gameUI .resultPanel h2 { margin: 0 0 12px; font-size: 18px; }
-      #gameUI .resultPanel .scores { font-size: 14px; line-height: 1.8; margin-bottom: 16px; color: #c9d1e0; }
-      #gameUI .resultPanel button { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
       #gameUI .edgeArrow { position: absolute; width: 24px; height: 24px; background: rgba(255,80,80,0.9); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
       #gameUI .edgeArrow.show { opacity: 1; }
       #gameUI .debugInfo { position: absolute; top: calc(50px + env(safe-area-inset-top, 0)); right: calc(8px + env(safe-area-inset-right, 0)); color: #8ab4f8; font-size: 10px; background: rgba(0,0,0,0.5); padding: 4px 6px; pointer-events: none; max-width: 55%; text-align: right; }
-      #gameUI .inputPanel { position: absolute; top: calc(52px + env(safe-area-inset-top, 0)); left: calc(8px + env(safe-area-inset-left, 0)); background: rgba(22,25,31,0.88); border: 1px solid #555; padding: 8px 10px; color: #c9d1e0; font-size: 11px; pointer-events: auto; min-width: 180px; }
+      #gameUI .inputPanel { position: absolute; top: calc(52px + env(safe-area-inset-top, 0)); left: calc(8px + env(safe-area-inset-left, 0)); background: rgba(22,25,31,0.88); border: 1px solid #555; padding: 8px 10px; color: #c9d1e0; font-size: 11px; pointer-events: auto; min-width: 160px; }
       #gameUI .inputPanel label { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; gap: 8px; }
       #gameUI .inputPanel input[type=range] { width: 90px; }
-      #gameUI .inputPanel .row { display: flex; gap: 6px; margin-top: 6px; }
       #gameUI .hiddenUI { opacity: 0 !important; pointer-events: none !important; }
     </style>
     <div class="topBar">
@@ -424136,16 +424069,14 @@ function createHud(rootEl, opts = {}) {
         <span id="gameScore">\u64E6\u8EAB\xD70</span>
         <span id="gameFps">FPS 0</span>
         <span id="gameObs">OBS 0</span>
-        <span id="gameYawRate">yaw 0\xB0/s</span>
+        <span id="gameYawRate">sens 1.0</span>
       </div>
     </div>
     <div class="inputPanel" id="gameInputPanel">
-      <div style="font-weight:700;color:#fff;margin-bottom:4px">\u8F93\u5165\u7075\u654F\u5EA6 v4.0</div>
-      <label>\u6C34\u5E73 <input type="range" id="sensH" min="0.2" max="3.0" step="0.1" value="1.0"><span id="sensHVal">1.0</span></label>
-      <label>\u5782\u76F4 <input type="range" id="sensV" min="0.2" max="3.0" step="0.1" value="1.0"><span id="sensVVal">1.0</span></label>
-      <label>\u6700\u5927\u89D2\u901F <input type="range" id="maxRate" min="120" max="360" step="10" value="240"><span id="maxRateVal">240\xB0/s</span></label>
-      <label>\u60EF\u6027 <input type="range" id="inertia" min="0" max="1" step="0.05" value="0.15"><span id="inertiaVal">0.15</span></label>
-      <div class="row"><button id="hideInputBtn" style="flex:1">\u9690\u85CF</button></div>
+      <div style="font-weight:700;color:#fff;margin-bottom:4px">\u89C6\u89D2\u7075\u654F\u5EA6 (\u7167\u6284\u63A2\u7D22)</div>
+      <label>\u7075\u654F\u5EA6 <input type="range" id="sens" min="0.2" max="4.0" step="0.1" value="1.0"><span id="sensVal">1.0</span></label>
+      <label>\u4E0A\u4E0B\u53CD\u8F6C <input type="checkbox" id="invertY"><span id="invertYVal">\u5173</span></label>
+      <div style="margin-top:6px;font-size:10px;color:#8aa">\u540C\u4E00\u624B\u52BF\u89D2\u5EA6\u5DEE\u226410% vs \u63A2\u7D22</div>
     </div>
     <div class="centerAnnounce" id="gameAnnounce"></div>
     <div class="joystick" id="gameJoystick"><div class="knob" id="gameKnob"></div></div>
@@ -424155,11 +424086,7 @@ function createHud(rootEl, opts = {}) {
       <button id="gameRollBtn">\u95EA\u907F</button>
       <button id="gameJumpBtn">\u8DF3</button>
     </div>
-    <div class="resultPanel" id="gameResult">
-      <h2>\u751F\u5B58\u7ED3\u675F</h2>
-      <div class="scores" id="gameResultScores"></div>
-      <button id="gameRestartBtn">\u91CD\u5F00</button>
-    </div>
+    <div class="resultPanel" id="gameResult"><h2>\u751F\u5B58\u7ED3\u675F</h2><div class="scores" id="gameResultScores"></div><button id="gameRestartBtn">\u91CD\u5F00</button></div>
     <div class="edgeArrow" id="gameEdgeArrow">\u25B2</div>
     <div class="debugInfo" id="gameDebugInfo"></div>
   `;
@@ -424183,117 +424110,83 @@ function createHud(rootEl, opts = {}) {
   const rollBtn = rootEl.querySelector("#gameRollBtn");
   const jumpBtn = rootEl.querySelector("#gameJumpBtn");
   const restartBtn = rootEl.querySelector("#gameRestartBtn");
-  let lastInteraction = performance.now();
-  let fadeTimer = null;
-  function resetFadeTimer() {
-    lastInteraction = performance.now();
-    if (topBarEl) topBarEl.style.opacity = "1";
-    if (fadeTimer) clearTimeout(fadeTimer);
-    fadeTimer = setTimeout(() => {
-      if (topBarEl) topBarEl.style.transition = "opacity 0.8s";
-      if (topBarEl) topBarEl.style.opacity = "0.25";
-    }, 3e3);
-  }
-  ["touchstart", "mousemove", "click"].forEach((ev) => {
-    rootEl.addEventListener(ev, resetFadeTimer, { passive: true });
-  });
-  resetFadeTimer();
   const inputPanel = rootEl.querySelector("#gameInputPanel");
-  const sensH = rootEl.querySelector("#sensH");
-  const sensV = rootEl.querySelector("#sensV");
-  const maxRate = rootEl.querySelector("#maxRate");
-  const inertia = rootEl.querySelector("#inertia");
-  const sensHVal = rootEl.querySelector("#sensHVal");
-  const sensVVal = rootEl.querySelector("#sensVVal");
-  const maxRateVal = rootEl.querySelector("#maxRateVal");
-  const inertiaVal = rootEl.querySelector("#inertiaVal");
-  const hideInputBtn = rootEl.querySelector("#hideInputBtn");
+  const sensEl = rootEl.querySelector("#sens");
+  const sensVal = rootEl.querySelector("#sensVal");
+  const invertYEl = rootEl.querySelector("#invertY");
+  const invertYVal = rootEl.querySelector("#invertYVal");
   let mode = "sandbox";
-  let score = 0;
-  let time = 0;
-  let bestTime = 0;
+  let score = 0, time = 0, bestTime = 0;
   try {
     bestTime = parseFloat(localStorage.getItem("mmd_city_best") || "0") || 0;
   } catch (e) {
   }
-  let announceQueue = [];
-  let announceTimer = null;
+  let announceQueue = [], announceTimer = null;
   const input = {
     moveX: 0,
     moveZ: 0,
     lookDX: 0,
     lookDY: 0,
-    lookNormX: 0,
-    lookNormY: 0,
-    hasLook: false,
-    clearLook: false,
     crouch: false,
     roll: false,
     jump: false,
     run: false,
-    sensH: 1,
-    sensV: 1,
-    maxRate: 240,
-    inertia: 0.15,
+    sens: 1,
+    invertY: false,
     resetView: false
   };
   try {
-    const saved = JSON.parse(localStorage.getItem("game_input") || "null");
+    const saved = JSON.parse(localStorage.getItem("game_look") || "null");
     if (saved) {
-      if (typeof saved.sensH === "number") {
-        input.sensH = saved.sensH;
-        sensH.value = saved.sensH;
+      if (typeof saved.sens === "number") {
+        input.sens = saved.sens;
+        sensEl.value = saved.sens;
       }
-      if (typeof saved.sensV === "number") {
-        input.sensV = saved.sensV;
-        sensV.value = saved.sensV;
-      }
-      if (typeof saved.maxRate === "number") {
-        input.maxRate = saved.maxRate;
-        maxRate.value = saved.maxRate;
-      }
-      if (typeof saved.inertia === "number") {
-        input.inertia = saved.inertia;
-        inertia.value = saved.inertia;
+      if (typeof saved.invertY === "boolean") {
+        input.invertY = saved.invertY;
+        invertYEl.checked = saved.invertY;
       }
     }
   } catch (e) {
   }
   function refreshLabels() {
-    sensHVal.textContent = (+sensH.value).toFixed(1);
-    sensVVal.textContent = (+sensV.value).toFixed(1);
-    maxRateVal.textContent = maxRate.value + "\xB0/s";
-    inertiaVal.textContent = (+inertia.value).toFixed(2);
+    sensVal.textContent = (+sensEl.value).toFixed(1);
+    invertYVal.textContent = invertYEl.checked ? "\u5F00" : "\u5173";
+    yawRateEl.textContent = `sens ${(+sensEl.value).toFixed(1)}`;
   }
   refreshLabels();
   function saveInput() {
-    input.sensH = parseFloat(sensH.value);
-    input.sensV = parseFloat(sensV.value);
-    input.maxRate = parseFloat(maxRate.value);
-    input.inertia = parseFloat(inertia.value);
+    input.sens = parseFloat(sensEl.value);
+    input.invertY = !!invertYEl.checked;
     try {
-      localStorage.setItem("game_input", JSON.stringify({ sensH: input.sensH, sensV: input.sensV, maxRate: input.maxRate, inertia: input.inertia }));
+      localStorage.setItem("game_look", JSON.stringify({ sens: input.sens, invertY: input.invertY }));
     } catch (e) {
     }
     refreshLabels();
   }
-  sensH.addEventListener("input", saveInput);
-  sensV.addEventListener("input", saveInput);
-  maxRate.addEventListener("input", saveInput);
-  inertia.addEventListener("input", saveInput);
-  hideInputBtn.addEventListener("click", () => {
-    inputPanel.style.display = "none";
-  });
+  sensEl.addEventListener("input", saveInput);
+  invertYEl.addEventListener("change", saveInput);
+  let fadeTimer = null;
+  function resetFadeTimer() {
+    if (topBarEl) topBarEl.style.opacity = "1";
+    if (fadeTimer) clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => {
+      if (topBarEl) {
+        topBarEl.style.transition = "opacity 0.8s";
+        topBarEl.style.opacity = "0.25";
+      }
+    }, 3e3);
+  }
+  ["touchstart", "mousemove", "click"].forEach((ev) => rootEl.addEventListener(ev, resetFadeTimer, { passive: true }));
+  resetFadeTimer();
   const joystickEl = rootEl.querySelector("#gameJoystick");
   const knobEl = rootEl.querySelector("#gameKnob");
-  let joyActive = false;
-  let joyId = null;
+  let joyActive = false, joyId = null;
   function setJoystick(x, y) {
     const rect = joystickEl.getBoundingClientRect();
     const cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
     let dx = x - cx, dy = y - cy;
-    const r = Math.hypot(dx, dy) || 1;
-    const maxR = 55;
+    const r = Math.hypot(dx, dy) || 1, maxR = 55;
     if (r > maxR) {
       dx *= maxR / r;
       dy *= maxR / r;
@@ -424313,11 +424206,9 @@ function createHud(rootEl, opts = {}) {
   }, { passive: false });
   joystickEl.addEventListener("touchmove", (e) => {
     if (!joyActive) return;
-    for (let i = 0; i < e.touches.length; i++) {
-      if (e.touches[i].identifier === joyId) {
-        setJoystick(e.touches[i].clientX, e.touches[i].clientY);
-        break;
-      }
+    for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === joyId) {
+      setJoystick(e.touches[i].clientX, e.touches[i].clientY);
+      break;
     }
     e.preventDefault();
   }, { passive: false });
@@ -424337,7 +424228,6 @@ function createHud(rootEl, opts = {}) {
   joystickEl.addEventListener("touchcancel", endJoy);
   const lookZoneEl = rootEl.querySelector("#gameLookZone");
   let lookId = null, lastX = 0, lastY = 0;
-  let accumulatedDX = 0, accumulatedDY = 0;
   lookZoneEl.addEventListener("touchstart", (e) => {
     const t = e.changedTouches[0];
     if (joyActive) {
@@ -424347,30 +424237,18 @@ function createHud(rootEl, opts = {}) {
     lookId = t.identifier;
     lastX = t.clientX;
     lastY = t.clientY;
-    accumulatedDX = 0;
-    accumulatedDY = 0;
     e.preventDefault();
   }, { passive: false });
   lookZoneEl.addEventListener("touchmove", (e) => {
     for (let i = 0; i < e.touches.length; i++) {
       const t = e.touches[i];
       if (t.identifier === lookId) {
-        let dx = t.clientX - lastX, dy = t.clientY - lastY;
+        const dx = t.clientX - lastX, dy = t.clientY - lastY;
         lastX = t.clientX;
         lastY = t.clientY;
-        if (Math.abs(dx) < 2 && Math.abs(dy) < 2) {
-          dx = 0;
-          dy = 0;
-        }
-        if (dx === 0 && dy === 0) break;
-        accumulatedDX += dx;
-        accumulatedDY += dy;
-        const normX = Math.max(-1, Math.min(1, dx / 100));
-        const normY = Math.max(-1, Math.min(1, dy / 100));
-        input.lookNormX = normX;
-        input.lookNormY = normY;
-        input.hasLook = true;
-        input.clearLook = false;
+        if (Math.abs(dx) < 1 && Math.abs(dy) < 1) break;
+        input.lookDX += dx;
+        input.lookDY += dy;
         break;
       }
     }
@@ -424379,21 +424257,12 @@ function createHud(rootEl, opts = {}) {
   function endLook(e) {
     let keep = false;
     for (let i = 0; i < e.touches.length; i++) if (e.touches[i].identifier === lookId) keep = true;
-    if (!keep) {
-      lookId = null;
-      input.hasLook = false;
-      input.clearLook = true;
-      input.lookNormX = 0;
-      input.lookNormY = 0;
-      accumulatedDX = 0;
-      accumulatedDY = 0;
-    }
+    if (!keep) lookId = null;
   }
   lookZoneEl.addEventListener("touchend", endLook);
   lookZoneEl.addEventListener("touchcancel", endLook);
   lookZoneEl.addEventListener("pointercancel", endLook);
-  let mouseDown = false;
-  let pointerLocked = false;
+  let mouseDown = false, pointerLocked = false;
   lookZoneEl.addEventListener("mousedown", (e) => {
     mouseDown = true;
     lastX = e.clientX;
@@ -424418,24 +424287,13 @@ function createHud(rootEl, opts = {}) {
       lastX = e.clientX;
       lastY = e.clientY;
     }
-    if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
-    const dpiScale = window.devicePixelRatio || 1;
-    dx *= dpiScale;
-    dy *= dpiScale;
-    input.lookNormX = Math.max(-1, Math.min(1, dx / 100));
-    input.lookNormY = Math.max(-1, Math.min(1, dy / 100));
-    input.hasLook = true;
-    input.clearLook = false;
+    if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+    input.lookDX += dx;
+    input.lookDY += dy;
     resetFadeTimer();
   });
   window.addEventListener("mouseup", () => {
-    if (mouseDown) {
-      mouseDown = false;
-      if (!pointerLocked) {
-        input.hasLook = false;
-        input.clearLook = true;
-      }
-    }
+    mouseDown = false;
   });
   const keys = {};
   window.addEventListener("keydown", (e) => {
@@ -424446,8 +424304,13 @@ function createHud(rootEl, opts = {}) {
     if (keys["KeyA"]) mx -= 1;
     if (keys["KeyD"]) mx += 1;
     const mag = Math.hypot(mx, mz) || 1;
-    input.moveX = mx / mag;
-    input.moveZ = mz / mag;
+    if (mx !== 0 || mz !== 0) {
+      input.moveX = mx / mag;
+      input.moveZ = mz / mag;
+    } else {
+      input.moveX = 0;
+      input.moveZ = 0;
+    }
     if (keys["ShiftLeft"] || keys["ShiftRight"]) input.run = true;
     if (keys["ControlLeft"] || keys["ControlRight"]) input.crouch = true;
     if (e.code === "Space") {
@@ -424464,9 +424327,7 @@ function createHud(rootEl, opts = {}) {
           document.exitPointerLock();
         } catch (err) {
         }
-      } else {
-        if (opts.onExit) opts.onExit();
-      }
+      } else if (opts.onExit) opts.onExit();
     }
     resetFadeTimer();
   });
@@ -424561,20 +424422,14 @@ function createHud(rootEl, opts = {}) {
       edgeArrowEl.classList.remove("show");
       return;
     }
-    const dx = giantPos.x - playerPos.x;
-    const dz = giantPos.z - playerPos.z;
+    const dx = giantPos.x - playerPos.x, dz = giantPos.z - playerPos.z;
     const ang = Math.atan2(dx, dz);
     edgeArrowEl.style.left = "50%";
     edgeArrowEl.style.top = "60px";
     edgeArrowEl.style.transform = `translateX(-50%) rotate(${ang}rad)`;
     edgeArrowEl.classList.add("show");
-    if (isSeeing) {
-      edgeArrowEl.style.background = "rgba(255,30,30,0.95)";
-      edgeArrowEl.textContent = "!";
-    } else {
-      edgeArrowEl.style.background = "rgba(255,80,80,0.7)";
-      edgeArrowEl.textContent = "\u25B2";
-    }
+    edgeArrowEl.style.background = isSeeing ? "rgba(255,30,30,0.95)" : "rgba(255,80,80,0.7)";
+    edgeArrowEl.textContent = isSeeing ? "!" : "\u25B2";
   }
   function setScore(s) {
     score = s;
@@ -424582,8 +424437,7 @@ function createHud(rootEl, opts = {}) {
   }
   function setTime(t) {
     time = t;
-    if (mode === "survival") timeEl.textContent = `\u23F1 ${t.toFixed(1)}s`;
-    else timeEl.textContent = `\u6C99\u76D2`;
+    timeEl.textContent = mode === "survival" ? `\u23F1 ${t.toFixed(1)}s` : `\u6C99\u76D2`;
   }
   function addScore(delta) {
     score += delta;
@@ -424598,8 +424452,7 @@ function createHud(rootEl, opts = {}) {
   function setObservers(n) {
     obsEl.textContent = `OBS ${n}`;
   }
-  function setYawRate(rateDeg) {
-    yawRateEl.textContent = `yaw ${rateDeg.toFixed(1)}\xB0/s`;
+  function setYawRate() {
   }
   exitBtn.addEventListener("click", () => {
     if (opts.onExit) opts.onExit();
@@ -424777,6 +424630,15 @@ async function enterCityMode() {
   let skyInfo = null;
   try {
     skyInfo = setupSkyAndLights(scene);
+    if (skyInfo && skyInfo.skyMesh) {
+      try {
+        skyInfo.skyMesh.scaling.set(1.2, 1.2, 1.2);
+      } catch (e) {
+      }
+    }
+    if (skyInfo && skyInfo.skyMesh && cityData) {
+      cityData._skyMesh = skyInfo.skyMesh;
+    }
   } catch (e) {
     console.warn("[city] setup sky failed", e);
   }
@@ -424842,13 +424704,27 @@ async function enterCityMode() {
   mmd._absT0 = void 0;
   mmd._userPaused = false;
   mmd._ended = false;
+  if (!motions) {
+    try {
+      motions = await loadDefaultMotions(scene);
+    } catch (e) {
+      console.warn("[city] load motions failed", e);
+      motions = { idle_a: null, walk: null, stomp: null };
+    }
+  }
+  if (mmd.mmdModel && motions && !motionCtrl) {
+    motionCtrl = createMotionController(mmd.mmdModel, motions);
+    motionCtrl.setMotion("idle_a");
+  }
   if (!giant) {
     const mmdModel = mmd.mmdModel;
     const mesh = modelRoot;
     const skeleton = mesh ? mesh.skeleton : null;
     giant = createGiant({ mmdModel, mesh, skeleton, root: mesh }, {
+      motionController: motionCtrl,
+      city: cityData,
       onMotionChange: (slot) => {
-        if (motionCtrl) motionCtrl.setMotion(slot);
+        if (motionCtrl) motionCtrl.setMotion(slot, 0.4);
         mmd._absT0 = void 0;
         mmd._userPaused = false;
         mmd._ended = false;
@@ -424856,18 +424732,8 @@ async function enterCityMode() {
       },
       isCrouching: false
     });
-  }
-  if (!motions) {
-    try {
-      motions = await loadDefaultMotions(scene);
-    } catch (e) {
-      console.warn("[city] load motions failed", e);
-      motions = { idle: null, walk: null, stomp: null };
-    }
-  }
-  if (mmd.mmdModel && motions) {
-    motionCtrl = createMotionController(mmd.mmdModel, motions);
-    motionCtrl.setMotion("idle");
+  } else {
+    if (motionCtrl) giant.motionController = motionCtrl;
   }
   if (!fx) {
     fx = createFx(scene, {
@@ -424945,7 +424811,7 @@ async function enterCityMode() {
         gameLoopLast = now;
         dt = Math.min(0.05, dt);
         dt *= slowmoFactor;
-        const isPC = typeof window !== "undefined" && window.innerWidth > 1024 || false;
+        const isPC = true;
         const fixedDt = isPC ? FIXED_DT_PC : FIXED_DT_MOBILE;
         physicsAccum += dt;
         let steps = 0;
@@ -424953,6 +424819,8 @@ async function enterCityMode() {
         try {
           const qSub = Q && Q.substeps ? Q.substeps : isPC ? 6 : 4;
           if (mmd.setPhysics) mmd.setPhysics({ substeps: qSub });
+          if (true) {
+          }
         } catch (e) {
         }
         while (physicsAccum >= fixedDt && steps < maxSteps) {
@@ -424969,7 +424837,18 @@ async function enterCityMode() {
         const gState = giant ? giant.update(dt, pState ? pState.pos : null, {}) : null;
         if (stomp && pState) stomp.update(dt, pState.pos, pState);
         if (fx && pState) fx.update(dt, pState.camera, pState.pos, giant);
-        if (pState && cityData) updateCityCulling(pState.pos, cityData);
+        if (pState && cityData) {
+          updateCityCulling(pState.pos, cityData);
+          try {
+            if (skyInfo && skyInfo.skyMesh && pState.camera) {
+              const camPos = pState.camera.position || pState.pos;
+              if (skyInfo.skyMesh.position) {
+                skyInfo.skyMesh.position.set(camPos.x, camPos.y, camPos.z);
+              }
+            }
+          } catch (e) {
+          }
+        }
         if (hud) {
           if (hud.mode === "survival") {
             survivalTime += dt;

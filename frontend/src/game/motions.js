@@ -1,131 +1,262 @@
 import "./bjs.js";
-// game/motions.js — 加载默认动作 + 交叉淡化切换
-// 读 tools/gen-motion.mjs 生成的 VMD
+// game/motions.js — v5.2 15支动作，运行时权重交叉淡化，不dispose重建
+
+const MOTION_FILES = [
+  "idle_a.vmd",
+  "idle_b.vmd",
+  "walk.vmd",
+  "run.vmd",
+  "turn_in_place.vmd",
+  "stomp_prepare.vmd",
+  "stomp.vmd",
+  "stomp_recover.vmd",
+  "crouch_look.vmd",
+  "kick.vmd",
+  "sweep_hand.vmd",
+  "grab_pinch.vmd",
+  "taunt_laugh.vmd",
+  "notice_you.vmd",
+  "lose_sight.vmd",
+];
+
+const MOTION_ALIAS = {
+  idle: "idle_a",
+  walk: "walk",
+  run: "run",
+  stomp: "stomp",
+};
 
 export async function loadDefaultMotions(scene) {
-  const motions = { idle: null, walk: null, stomp: null };
+  const motions = {};
+  for (const f of MOTION_FILES) {
+    const key = f.replace(".vmd", "");
+    motions[key] = null;
+  }
+  // 兼容旧名
+  motions["idle"] = null;
+  motions["walk"] = null;
+  motions["stomp"] = null;
 
-  // 尝试从多个路径加载
-  const candidates = [
-    "./game/motions/",
-    "./motions/",
-    "./dist/motions/",
-    "/game/motions/",
-  ];
-
-  const files = ["idle.vmd", "walk.vmd", "stomp.vmd"];
-
-  // 在浏览器环境，使用 VmdLoader
   const BABYLON = (typeof window !== "undefined" && window.BABYLON) ? window.BABYLON : null;
   if (!BABYLON) {
-    console.warn("[motions] BABYLON not found, 返回空");
+    console.warn("[motions] BABYLON not found");
     return motions;
   }
 
-  // 动态获取 VmdLoader
   let VmdLoader;
   try {
-    // 尝试从 babylon-mmd 获取
     const { VmdLoader: VL } = await import("babylon-mmd/esm/Loader/vmdLoader.js");
     VmdLoader = VL;
   } catch (e) {
-    console.warn("[motions] 无法 import VmdLoader", e);
-    // 尝试全局
-    if (BABYLON.MMD && BABYLON.MMD.VmdLoader) {
-      VmdLoader = BABYLON.MMD.VmdLoader;
-    }
+    if (BABYLON.MMD && BABYLON.MMD.VmdLoader) VmdLoader = BABYLON.MMD.VmdLoader;
   }
-
   if (!VmdLoader) {
-    console.warn("[motions] VmdLoader 不可用");
+    console.warn("[motions] VmdLoader unavailable");
     return motions;
   }
 
   const loader = new VmdLoader(scene);
+  const candidates = ["./game/motions/", "./motions/", "./dist/motions/", "/game/motions/"];
 
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
+  for (const file of MOTION_FILES) {
     const key = file.replace(".vmd", "");
     let loaded = null;
     for (const base of candidates) {
       const url = base + file;
       try {
         const anim = await loader.loadAsync("motion", url);
-        console.log(`[motions] loaded ${url} boneTracks=${anim.boneTracks?.length}`);
+        console.log(`[motions] loaded ${url} tracks=${anim.boneTracks?.length}`);
         loaded = anim;
         break;
-      } catch (e) {
-        // 尝试下一个路径
-        // console.log(`[motions] fail ${url}: ${e.message}`);
-      }
+      } catch (e) {}
     }
     motions[key] = loaded;
   }
+  // 兼容
+  motions["idle"] = motions["idle_a"] || motions["idle_b"];
+  motions["walk"] = motions["walk"];
+  motions["stomp"] = motions["stomp"];
+  motions["run"] = motions["run"];
 
-  // 兜底：若未加载到，用程序化步态（空对象，giant.js 会用程序化）
   return motions;
 }
 
-// 交叉淡化切换（0.4s）
+// v5.2 运行时权重交叉淡化控制器，不dispose重建
 export function createMotionController(mmdModel, motions) {
-  // mmdModel: MmdModel
-  // motions: {idle, walk, stomp}
-  let current = null;
-  let currentHandle = null;
+  let composite = null;
+  let runtime = null;
+  let globalTime = 0;
+  const active = new Map(); // slot -> {span, localTime, weight, targetWeight}
+  let currentSlot = null;
+  let fadeDuration = 0.4;
+  let fadeTimer = 0;
+  let fading = false;
+  let fromSlot = null;
+  let toSlot = null;
 
-  // 尝试获取 MmdCompositeAnimation
-  let MmdCompositeAnimation, MmdAnimationSpan, MmdCompositeRuntimeModelAnimation;
-  try {
-    // 动态 import
-    // 注意：这里用 import() 在浏览器中是异步的，但我们在函数内同步尝试
-    // 实际应在外部 import，这里简化为从全局获取
-    if (typeof window !== "undefined" && window.BABYLON) {
-      // babylon-mmd 会把这些挂到全局？尝试
-    }
-  } catch (e) {}
+  let MCA, MAS, MCRMA;
+  let ready = false;
 
-  async function setMotion(slot, fade = 0.4) {
-    const anim = motions[slot] || motions["idle"] || motions["walk"];
-    if (!anim || !mmdModel) return;
-
+  async function init() {
+    if (ready) return;
     try {
-      // 若有 MmdCompositeAnimation 支持，尝试交叉淡化
-      const { MmdCompositeAnimation: MCA, MmdAnimationSpan: MAS } = await import("babylon-mmd/esm/Runtime/Animation/mmdCompositeAnimation.js");
-      const { MmdCompositeRuntimeModelAnimation: MCRMA } = await import("babylon-mmd/esm/Runtime/Animation/mmdCompositeRuntimeModelAnimation.js");
+      const mod1 = await import("babylon-mmd/esm/Runtime/Animation/mmdCompositeAnimation.js");
+      const mod2 = await import("babylon-mmd/esm/Runtime/Animation/mmdCompositeRuntimeModelAnimation.js");
+      MCA = mod1.MmdCompositeAnimation;
+      MAS = mod1.MmdAnimationSpan;
+      MCRMA = mod2.MmdCompositeRuntimeModelAnimation;
+      composite = new MCA("giant-composite");
+      runtime = MCRMA.Create(composite, mmdModel);
+      mmdModel.setRuntimeAnimation(runtime);
+      ready = true;
+      console.log("[motions] composite runtime created");
+    } catch (e) {
+      console.warn("[motions] composite init failed, fallback single", e);
+      ready = false;
+    }
+  }
 
-      if (MCA && MAS && MCRMA) {
-        const comp = new MCA(`${slot}-composite`);
-        comp.addSpan(new MAS(anim));
-        const handle = MCRMA.Create(comp, mmdModel);
-        // 淡化：若有旧 handle，尝试过渡（简化：直接替换，0.4s 内由外部控制 timeScale）
-        if (currentHandle) {
-          try { currentHandle.dispose && currentHandle.dispose(); } catch (e) {}
+  // 同步初始化尝试
+  init();
+
+  function ensureSlot(slot) {
+    if (!ready || !composite || !MAS) return null;
+    const anim = motions[slot] || motions[MOTION_ALIAS[slot]] || motions["idle_a"];
+    if (!anim) return null;
+    if (active.has(slot)) return active.get(slot);
+    // 创建span，weight 0初始
+    const span = new MAS(anim, undefined, undefined, 0, 0);
+    composite.addSpan(span);
+    const entry = { span, localTime: 0, weight: 0, targetWeight: 0, anim };
+    active.set(slot, entry);
+    return entry;
+  }
+
+  function setMotion(slot, fade = 0.4) {
+    if (!slot) return;
+    // 兼容旧名
+    if (MOTION_ALIAS[slot]) slot = MOTION_ALIAS[slot];
+    if (!motions[slot] && motions[MOTION_ALIAS[slot]]) slot = MOTION_ALIAS[slot];
+    if (currentSlot === slot && !fading) return;
+
+    fadeDuration = fade;
+    fadeTimer = 0;
+    fromSlot = currentSlot;
+    toSlot = slot;
+    fading = true;
+
+    // 确保目标存在
+    const toEntry = ensureSlot(slot);
+    if (toEntry) {
+      toEntry.targetWeight = 1;
+      // localTime从0开始
+      toEntry.localTime = 0;
+      toEntry.span.offset = globalTime - toEntry.localTime;
+      toEntry.span.weight = 0;
+    }
+    if (fromSlot) {
+      const fromEntry = active.get(fromSlot);
+      if (fromEntry) fromEntry.targetWeight = 0;
+    } else {
+      // 首次直接设1
+      if (toEntry) {
+        toEntry.weight = 1;
+        toEntry.targetWeight = 1;
+        toEntry.span.weight = 1;
+        fading = false;
+        currentSlot = slot;
+        fromSlot = null;
+        toSlot = null;
+      }
+    }
+
+    // 兜底：若composite未就绪，用单动画
+    if (!ready) {
+      try {
+        const anim = motions[slot] || motions["idle_a"];
+        if (anim && mmdModel) {
+          const handle = mmdModel.createRuntimeAnimation(anim);
+          mmdModel.setRuntimeAnimation(handle);
+          currentSlot = slot;
+          fading = false;
         }
-        mmdModel.setRuntimeAnimation(handle);
-        currentHandle = handle;
-        current = slot;
-        return;
+      } catch (e) {
+        console.warn("[motions] fallback setMotion failed", e);
       }
-    } catch (e) {
-      // 退化为单动画
-      console.warn(`[motions] composite 失败，退化单动画 ${slot}`, e);
+    }
+  }
+
+  function update(dt) {
+    if (!ready || !composite) return;
+    globalTime += dt * 30; // MMD 30fps
+    fadeTimer += dt;
+
+    // 更新每个active的localTime和offset
+    for (const [slot, entry] of active) {
+      // 循环动作本地时间递增
+      const isLoop = slot.startsWith("idle") || slot === "walk" || slot === "run" || slot === "taunt_laugh" || slot === "crouch_look";
+      entry.localTime += dt * 30;
+      const len = entry.anim ? (entry.anim.endFrame - entry.anim.startFrame) : 120;
+      if (isLoop && len > 0) {
+        if (entry.localTime >= len) entry.localTime %= len;
+      } else {
+        if (entry.localTime > len) entry.localTime = len;
+      }
+      entry.span.offset = globalTime - entry.localTime;
     }
 
-    try {
-      const handle = mmdModel.createRuntimeAnimation(anim);
-      if (currentHandle) {
-        try { mmdModel.setRuntimeAnimation(null); currentHandle.dispose && currentHandle.dispose(); } catch (e) {}
+    if (fading) {
+      const t = Math.min(1, fadeTimer / fadeDuration);
+      // ease: sin
+      const ease = 0.5 - 0.5 * Math.cos(Math.PI * t);
+      for (const [slot, entry] of active) {
+        if (slot === fromSlot) {
+          entry.weight = (1 - ease) * 1;
+          entry.span.weight = entry.weight;
+        } else if (slot === toSlot) {
+          entry.weight = ease * 1;
+          entry.span.weight = entry.weight;
+        } else {
+          // 其他渐出
+          entry.weight = Math.max(0, entry.weight - dt * 2);
+          entry.span.weight = entry.weight;
+        }
       }
-      mmdModel.setRuntimeAnimation(handle);
-      currentHandle = handle;
-      current = slot;
-    } catch (e) {
-      console.error(`[motions] setMotion ${slot} 失败`, e);
+      if (t >= 1) {
+        fading = false;
+        // 清理权重为0的非当前
+        for (const [slot, entry] of Array.from(active.entries())) {
+          if (slot !== toSlot && entry.weight <= 0.01) {
+            try { composite.removeSpan(entry.span); } catch (e) {}
+            active.delete(slot);
+          }
+        }
+        currentSlot = toSlot;
+        fromSlot = null;
+        toSlot = null;
+        // 确保当前权重1
+        const cur = active.get(currentSlot);
+        if (cur) { cur.weight = 1; cur.span.weight = 1; cur.targetWeight = 1; }
+      }
+    } else {
+      // 非淡化时保持当前权重1，其他0
+      for (const [slot, entry] of active) {
+        if (slot === currentSlot) {
+          entry.weight = 1;
+          entry.span.weight = 1;
+        } else {
+          entry.weight = 0;
+          entry.span.weight = 0;
+        }
+      }
     }
   }
 
   return {
     setMotion,
-    get current() { return current; },
+    update,
+    get current() { return currentSlot; },
+    get composite() { return composite; },
+    get runtime() { return runtime; },
   };
 }

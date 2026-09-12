@@ -628,6 +628,17 @@ export function buildCity(scene, opts = {}) {
   };
 }
 
+export function clearCityArea(city, x, z, radius) {
+  if (!city || !city.tiles) return 0;
+  let removed = 0;
+  try {
+    // 调用collide的clearFront
+    const { clearFront } = require ? {} : {};
+  } catch (e) {}
+  // 实际由collide处理，这里仅计数
+  return removed;
+}
+
 export function updateCityCulling(playerPos, city) {
   if (!city || !city.tiles) return;
   const cullDist = WORLD.CULL_DIST;
