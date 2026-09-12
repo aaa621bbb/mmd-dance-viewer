@@ -572,26 +572,47 @@ function showCollisionDebug(scene) {
   hideCollisionDebug();
   const BABYLON = window.BABYLON;
   if (!BABYLON) return;
+  try {
+    // 取玩家周围 3 格
+    const { query } = require ? {} : {};
+  } catch (e) {}
+  // 直接用 getBoxes + 过滤玩家附近
   const boxes = getBoxes();
-  for (let i = 0; i < Math.min(boxes.length, 200); i++) {
+  let center = { x: 0, z: 0 };
+  try { if (player) center = player.pos; } catch (e) {}
+  const radius = 20; // 世界单位约 3 格 * CELL(1) + 余量
+  let shown = 0;
+  for (let i = 0; i < boxes.length && shown < 300; i++) {
     const b = boxes[i];
     if (b.kind === "ground") continue;
+    const dx = (b.minX + b.maxX) / 2 - center.x;
+    const dz = (b.minZ + b.maxZ) / 2 - center.z;
+    if (dx * dx + dz * dz > radius * radius) continue;
     try {
       const mesh = BABYLON.MeshBuilder.CreateBox(`dbg_${i}`, {
-        width: b.maxX - b.minX,
-        height: b.maxY - b.minY,
-        depth: b.maxZ - b.minZ,
+        width: Math.max(0.01, b.maxX - b.minX),
+        height: Math.max(0.01, b.maxY - b.minY),
+        depth: Math.max(0.01, b.maxZ - b.minZ),
       }, scene);
       mesh.position.set((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2);
       const mat = new BABYLON.StandardMaterial(`dbgMat_${i}`, scene);
       mat.wireframe = true;
-      mat.emissiveColor = new BABYLON.Color3(1, 0, 0);
+      // 红=挡住的轴? 简化：建筑红，家具黄，车蓝，墙紫
+      let col = new BABYLON.Color3(1, 0, 0);
+      if (b.kind === "furn") col = new BABYLON.Color3(1, 1, 0);
+      else if (b.kind === "car" || b.kind === "card") col = new BABYLON.Color3(0, 0.6, 1);
+      else if (b.kind === "wall") col = new BABYLON.Color3(1, 0, 1);
+      else if (b.kind === "curb") col = new BABYLON.Color3(0, 1, 0);
+      mat.emissiveColor = col;
+      mat.disableLighting = true;
       mesh.material = mat;
       mesh.isPickable = false;
       mesh.renderingGroupId = 2;
       debugMeshes.push(mesh);
+      shown++;
     } catch (e) {}
   }
+  console.log(`[city] debug collision shown ${shown}/${boxes.length}`);
 }
 
 function hideCollisionDebug() {

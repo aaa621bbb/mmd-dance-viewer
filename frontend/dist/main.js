@@ -287618,10 +287618,6 @@ var init_cubeTexture = __esm({
 });
 
 // node_modules/@babylonjs/core/Materials/Textures/dynamicTexture.js
-var dynamicTexture_exports = {};
-__export(dynamicTexture_exports, {
-  DynamicTexture: () => DynamicTexture
-});
 var init_dynamicTexture = __esm({
   "node_modules/@babylonjs/core/Materials/Textures/dynamicTexture.js"() {
     init_dynamicTexture_pure();
@@ -421240,52 +421236,182 @@ var GeoBatch = class {
   }
 };
 
+// src/game/quality.js
+var LEVELS = {
+  L0: {
+    level: "L0",
+    triBudget: 12e4,
+    drawCallBudget: 60,
+    shadowSize: 1024,
+    shadowCascade: 1,
+    atlasSize: 1024,
+    atlasPadding: 4,
+    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    buildingDetail: 0,
+    streetFurnitureTypes: 4,
+    carDetail: false,
+    groundDetail: 0,
+    enableBloom: false,
+    enableSSAO: false,
+    enableSSR: false,
+    enableDoF: false,
+    enableVolumetric: false,
+    enableMotionBlur: false,
+    substeps: 4
+  },
+  L1: {
+    level: "L1",
+    triBudget: 25e4,
+    drawCallBudget: 110,
+    shadowSize: 2048,
+    shadowCascade: 1,
+    atlasSize: 2048,
+    atlasPadding: 4,
+    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    buildingDetail: 1,
+    streetFurnitureTypes: 12,
+    carDetail: false,
+    groundDetail: 1,
+    enableBloom: true,
+    enableSSAO: false,
+    enableSSR: false,
+    enableDoF: false,
+    enableVolumetric: false,
+    enableMotionBlur: false,
+    substeps: 4
+  },
+  L2: {
+    level: "L2",
+    triBudget: 8e5,
+    drawCallBudget: 300,
+    shadowSize: 4096,
+    shadowCascade: 2,
+    atlasSize: 2048,
+    atlasPadding: 4,
+    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    buildingDetail: 2,
+    streetFurnitureTypes: 12,
+    carDetail: true,
+    groundDetail: 2,
+    enableBloom: true,
+    enableSSAO: true,
+    enableSSR: false,
+    enableBloomACES: true,
+    enableDoF: true,
+    enableVolumetric: false,
+    enableMotionBlur: false,
+    substeps: 6
+  },
+  L3: {
+    level: "L3",
+    triBudget: 25e5,
+    drawCallBudget: 700,
+    shadowSize: 4096,
+    shadowCascade: 4,
+    atlasSize: 4096,
+    atlasPadding: 8,
+    tileScale: { asphalt: 8, sidewalk: 2, grass: 6 },
+    buildingDetail: 3,
+    streetFurnitureTypes: 12,
+    carDetail: true,
+    groundDetail: 3,
+    enableBloom: true,
+    enableSSAO: true,
+    enableSSR: true,
+    enableBloomACES: true,
+    enableDoF: true,
+    enableVolumetric: true,
+    enableMotionBlur: true,
+    substeps: 8
+  }
+};
+function detectDefaultLevel() {
+  try {
+    const isPC = typeof navigator !== "undefined" && !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) && window.innerWidth > 1024;
+    if (isPC) return "L2";
+  } catch (e) {
+  }
+  return "L1";
+}
+var currentLevel = detectDefaultLevel();
+try {
+  const saved = localStorage.getItem("game_quality");
+  if (saved && LEVELS[saved]) currentLevel = saved;
+} catch (e) {
+}
+var Q = LEVELS[currentLevel];
+
 // src/game/atlas.js
-var ATLAS_SIZE = 1024;
+var BASE_ATLAS_SIZE = 1024;
 var GRID = 4;
-var CELL2 = ATLAS_SIZE / GRID;
+var ATLAS_RECT = {
+  winOffice: 0,
+  winApartment: 1,
+  winOld: 2,
+  curtainWall: 3,
+  asphalt: 4,
+  laneLine: 5,
+  sidewalk: 6,
+  grass: 7,
+  metal: 8,
+  glassDoor: 9,
+  signA: 10,
+  hoarding: 11,
+  roof: 12,
+  zebra: 13,
+  wire: 14,
+  blob: 15
+};
 var TILES = [
-  { id: 0, name: "window_office" },
-  { id: 1, name: "window_apartment" },
-  { id: 2, name: "window_old" },
-  { id: 3, name: "glass_curtain" },
-  { id: 4, name: "asphalt" },
-  { id: 5, name: "lane_line" },
-  { id: 6, name: "brick" },
-  { id: 7, name: "grass" },
-  { id: 8, name: "metal" },
-  { id: 9, name: "glass_door" },
-  { id: 10, name: "sign" },
-  { id: 11, name: "fence" },
-  { id: 12, name: "roof" },
-  { id: 13, name: "zebra" },
-  { id: 14, name: "wire" },
-  { id: 15, name: "soft_circle" }
+  { id: 0, name: "window_office", key: "winOffice" },
+  { id: 1, name: "window_apartment", key: "winApartment" },
+  { id: 2, name: "window_old", key: "winOld" },
+  { id: 3, name: "glass_curtain", key: "curtainWall" },
+  { id: 4, name: "asphalt", key: "asphalt" },
+  { id: 5, name: "lane_line", key: "laneLine" },
+  { id: 6, name: "brick", key: "sidewalk" },
+  { id: 7, name: "grass", key: "grass" },
+  { id: 8, name: "metal", key: "metal" },
+  { id: 9, name: "glass_door", key: "glassDoor" },
+  { id: 10, name: "sign", key: "signA" },
+  { id: 11, name: "fence", key: "hoarding" },
+  { id: 12, name: "roof", key: "roof" },
+  { id: 13, name: "zebra", key: "zebra" },
+  { id: 14, name: "wire", key: "wire" },
+  { id: 15, name: "soft_circle", key: "blob" }
 ];
-function rectForId(id) {
+function rectForId(id, atlasSize = BASE_ATLAS_SIZE, padding = 4) {
+  const cell = atlasSize / GRID;
   const col = id % GRID;
   const row = Math.floor(id / GRID);
-  const u0 = col / GRID;
-  const v0 = row / GRID;
-  const u1 = (col + 1) / GRID;
-  const v1 = (row + 1) / GRID;
-  return { u0, v0, u1, v1, x: col * CELL2, y: row * CELL2, w: CELL2, h: CELL2 };
+  const drawW = cell - padding * 2;
+  const drawH = cell - padding * 2;
+  const x = col * cell + padding;
+  const y = row * cell + padding;
+  const u0 = (x + 0.5) / atlasSize;
+  const v0 = (y + 0.5) / atlasSize;
+  const u1 = (x + drawW - 0.5) / atlasSize;
+  const v1 = (y + drawH - 0.5) / atlasSize;
+  return { u0, v0, u1, v1, x, y, w: drawW, h: drawH, cellX: col * cell, cellY: row * cell, cellW: cell, cellH: cell, id };
 }
 function getAtlasRect(nameOrId) {
   let id;
   if (typeof nameOrId === "number") id = nameOrId;
   else {
-    const found = TILES.find((t) => t.name === nameOrId);
-    id = found ? found.id : 0;
+    if (ATLAS_RECT[nameOrId] !== void 0) id = ATLAS_RECT[nameOrId];
+    else {
+      const found = TILES.find((t) => t.name === nameOrId || t.key === nameOrId);
+      id = found ? found.id : 0;
+    }
   }
-  return rectForId(id);
+  const size = typeof Q !== "undefined" && Q.atlasSize ? Q.atlasSize : BASE_ATLAS_SIZE;
+  const pad = typeof Q !== "undefined" && Q.atlasPadding ? Q.atlasPadding : 4;
+  return rectForId(id, size, pad);
 }
 function drawWindowOffice(ctx, x, y, w, h, rng) {
   ctx.fillStyle = "#b8bcc0";
   ctx.fillRect(x, y, w, h);
-  const floorH = 32;
-  const bayW = 32;
-  const winW = 24, winH = 16;
+  const floorH = 32, bayW = 32, winW = 24, winH = 16;
   for (let row = 0; row < h; row += floorH) {
     if (row / floorH % 4 === 0) {
       ctx.fillStyle = "rgba(0,0,0,0.25)";
@@ -421294,14 +421420,9 @@ function drawWindowOffice(ctx, x, y, w, h, rng) {
     for (let col = 0; col < w; col += bayW) {
       ctx.fillStyle = "rgba(0,0,0,0.15)";
       ctx.fillRect(x + col, y + row, 1, floorH);
-      const wx = x + col + (bayW - winW) / 2;
-      const wy = y + row + (floorH - winH) / 2;
+      const wx = x + col + (bayW - winW) / 2, wy = y + row + (floorH - winH) / 2;
       const lit = rng() < 0.22;
-      if (lit) {
-        ctx.fillStyle = rng() < 0.5 ? "#ffd9a0" : "#cfe6ff";
-      } else {
-        ctx.fillStyle = "#2a2e38";
-      }
+      ctx.fillStyle = lit ? rng() < 0.5 ? "#ffd9a0" : "#cfe6ff" : "#2a2e38";
       ctx.fillRect(wx, wy, winW, winH);
       ctx.strokeStyle = "rgba(0,0,0,0.4)";
       ctx.lineWidth = 1;
@@ -421317,8 +421438,7 @@ function drawWindowApartment(ctx, x, y, w, h, rng) {
     for (let col = 0; col < w; col += bayW) {
       ctx.fillStyle = "rgba(0,0,0,0.12)";
       ctx.fillRect(x + col, y + row, 1, floorH);
-      const wx = x + col + (bayW - winW) / 2;
-      const wy = y + row + (floorH - winH) / 2;
+      const wx = x + col + (bayW - winW) / 2, wy = y + row + (floorH - winH) / 2;
       const lit = rng() < 0.3;
       ctx.fillStyle = lit ? rng() < 0.6 ? "#ffecb0" : "#d0e8ff" : "#3a3a4a";
       ctx.fillRect(wx, wy, winW, winH);
@@ -421381,9 +421501,7 @@ function drawLaneLine(ctx, x, y, w, h, rng) {
   ctx.fillStyle = "rgba(255,255,255,0.95)";
   const dashLen = 32, gap = 24;
   const cy = y + h / 2 - 2;
-  for (let dx = 0; dx < w; dx += dashLen + gap) {
-    ctx.fillRect(x + dx, cy, dashLen, 4);
-  }
+  for (let dx = 0; dx < w; dx += dashLen + gap) ctx.fillRect(x + dx, cy, dashLen, 4);
 }
 function drawBrick(ctx, x, y, w, h, rng) {
   ctx.fillStyle = "#c8c4b8";
@@ -421451,9 +421569,8 @@ function drawSign(ctx, x, y, w, h, rng) {
       ctx.beginPath();
       ctx.arc(x + i * third + third / 2, y + h / 2, 30, 0, Math.PI * 2);
       ctx.fill();
-    } else if (i === 1) {
-      ctx.fillRect(x + i * third + 20, y + 40, third - 40, h - 80);
-    } else {
+    } else if (i === 1) ctx.fillRect(x + i * third + 20, y + 40, third - 40, h - 80);
+    else {
       ctx.beginPath();
       ctx.moveTo(x + i * third + third / 2, y + 40);
       ctx.lineTo(x + i * third + 20, y + h - 40);
@@ -421505,9 +421622,7 @@ function drawZebra(ctx, x, y, w, h, rng) {
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = "#ffffff";
   const stripeW = 16, gap = 16;
-  for (let i = 0; i < w; i += stripeW + gap) {
-    ctx.fillRect(x + i, y + 20, stripeW, h - 40);
-  }
+  for (let i = 0; i < w; i += stripeW + gap) ctx.fillRect(x + i, y + 20, stripeW, h - 40);
 }
 function drawWire(ctx, x, y, w, h, rng) {
   ctx.fillStyle = "#888888";
@@ -421547,44 +421662,45 @@ var DRAWERS = {
   14: drawWire,
   15: drawSoftCircle
 };
-function buildAtlasTexture(canvas2) {
-  const ctx = canvas2.getContext("2d");
-  canvas2.width = ATLAS_SIZE;
-  canvas2.height = ATLAS_SIZE;
-  ctx.fillStyle = "#808080";
-  ctx.fillRect(0, 0, ATLAS_SIZE, ATLAS_SIZE);
-  const baseRng = mulberry32(20260912);
-  for (let id = 0; id < 16; id++) {
-    const rect = rectForId(id);
-    const drawer = DRAWERS[id];
-    if (!drawer) continue;
-    const rng = mulberry32(20260912 + id * 1e3);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(rect.x, rect.y, rect.w, rect.h);
-    ctx.clip();
-    drawer(ctx, rect.x, rect.y, rect.w, rect.h, rng);
-    ctx.restore();
-    ctx.strokeStyle = "rgba(0,0,0,0.05)";
-    ctx.lineWidth = 1;
-    ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+function buildAtlasTexture(canvas2, atlasSize = BASE_ATLAS_SIZE, padding = 4) {
+  try {
+    const ctx = canvas2.getContext("2d");
+    if (!ctx || typeof ctx.save !== "function") {
+      return canvas2;
+    }
+    canvas2.width = atlasSize;
+    canvas2.height = atlasSize;
+    ctx.fillStyle = "#808080";
+    ctx.fillRect(0, 0, atlasSize, atlasSize);
+    for (let id = 0; id < 16; id++) {
+      const rect = rectForId(id, atlasSize, padding);
+      const drawer = DRAWERS[id];
+      if (!drawer) continue;
+      const rng = mulberry32(20260912 + id * 1e3);
+      ctx.save();
+      ctx.fillStyle = "#808080";
+      ctx.fillRect(rect.cellX, rect.cellY, rect.cellW, rect.cellH);
+      ctx.beginPath();
+      ctx.rect(rect.x, rect.y, rect.w, rect.h);
+      ctx.clip();
+      drawer(ctx, rect.x, rect.y, rect.w, rect.h, rng);
+      ctx.restore();
+      ctx.strokeStyle = "rgba(0,0,0,0.03)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(rect.cellX, rect.cellY, rect.cellW, rect.cellH);
+    }
+  } catch (e) {
   }
   return canvas2;
 }
 function buildAtlas(scene) {
+  const atlasSize = typeof Q !== "undefined" && Q.atlasSize ? Q.atlasSize : BASE_ATLAS_SIZE;
+  const padding = typeof Q !== "undefined" && Q.atlasPadding ? Q.atlasPadding : 4;
   let canvas2;
-  if (typeof document !== "undefined") {
-    canvas2 = document.createElement("canvas");
-  } else if (typeof OffscreenCanvas !== "undefined") {
-    canvas2 = new OffscreenCanvas(ATLAS_SIZE, ATLAS_SIZE);
-  } else {
-    return {
-      texture: null,
-      rect: getAtlasRect,
-      canvas: null
-    };
-  }
-  buildAtlasTexture(canvas2);
+  if (typeof document !== "undefined") canvas2 = document.createElement("canvas");
+  else if (typeof OffscreenCanvas !== "undefined") canvas2 = new OffscreenCanvas(atlasSize, atlasSize);
+  else return { texture: null, rect: getAtlasRect, canvas: null };
+  buildAtlasTexture(canvas2, atlasSize, padding);
   let texture = null;
   if (scene) {
     try {
@@ -421596,30 +421712,12 @@ function buildAtlas(scene) {
         dt.anisotropicFilteringLevel = 4;
         dt.update();
         texture = dt;
-      } else {
-        const { DynamicTexture: DynamicTexture2 } = __require ? (init_dynamicTexture(), __toCommonJS(dynamicTexture_exports)) : {};
-        if (DynamicTexture2) {
-          const dt = new DynamicTexture2("cityAtlas", { width: ATLAS_SIZE, height: ATLAS_SIZE }, scene, false);
-          const ctx2 = dt.getContext();
-          ctx2.drawImage(canvas2, 0, 0);
-          dt.update();
-          dt.hasAlpha = true;
-          dt.wrapU = 1;
-          dt.wrapV = 1;
-          texture = dt;
-        }
       }
     } catch (e) {
       console.warn("[atlas] create texture failed", e);
-      texture = null;
     }
   }
-  return {
-    texture,
-    rect: getAtlasRect,
-    canvas: canvas2,
-    size: ATLAS_SIZE
-  };
+  return { texture, rect: getAtlasRect, canvas: canvas2, size: atlasSize, padding };
 }
 
 // src/game/city.js
@@ -421670,10 +421768,8 @@ function isMainRoad(index) {
 }
 function generateBlocks(seed) {
   const blocks = [];
-  const rngGlobal = mulberry32(seed);
   const grid2 = CFG.CITY_GRID;
   const pitch = CFG.BLOCK_PITCH;
-  const pitchWorld = WORLD.BLOCK_PITCH;
   for (let bx = 0; bx < grid2; bx++) {
     for (let bz = 0; bz < grid2; bz++) {
       const cxPH = (bx - grid2 / 2 + 0.5) * pitch;
@@ -421709,25 +421805,17 @@ function generateBlocks(seed) {
         leftW: u(leftW),
         rightW: u(rightW),
         bottomW: u(bottomW),
-        topW: u(topW),
-        leftWPH: leftW,
-        rightWPH: rightW,
-        bottomWPH: bottomW,
-        topWPH: topW
+        topW: u(topW)
       });
     }
   }
   return blocks;
 }
 function createCityMaterial(scene, atlasTex, name649 = "cityMat") {
-  let mat = null;
   try {
     const BABYLON3 = typeof window !== "undefined" && window.BABYLON ? window.BABYLON : null;
-    if (!BABYLON3) {
-      console.warn("[city] BABYLON missing for material");
-      return null;
-    }
-    mat = new BABYLON3.StandardMaterial(name649, scene);
+    if (!BABYLON3) return null;
+    const mat = new BABYLON3.StandardMaterial(name649, scene);
     if (atlasTex) {
       mat.diffuseTexture = atlasTex;
       mat.emissiveTexture = atlasTex;
@@ -421737,15 +421825,120 @@ function createCityMaterial(scene, atlasTex, name649 = "cityMat") {
     mat.specularColor = new BABYLON3.Color3(0.1, 0.1, 0.1);
     mat.backFaceCulling = false;
     mat.useVertexColor = true;
-    mat.useVertexAlpha = true;
+    return mat;
   } catch (e) {
-    console.warn("[city] create material failed", e);
+    console.warn("[city] mat fail", e);
+    return null;
   }
-  return mat;
+}
+function rotatedAABB(x, z, W, D, yaw) {
+  const hx = W / 2, hz = D / 2;
+  const cos = Math.cos(yaw), sin = Math.sin(yaw);
+  const corners = [
+    [hx, hz],
+    [-hx, hz],
+    [-hx, -hz],
+    [hx, -hz]
+  ].map(([cx, cz]) => ({
+    x: cx * cos - cz * sin,
+    z: cx * sin + cz * cos
+  }));
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const c of corners) {
+    if (c.x < minX) minX = c.x;
+    if (c.x > maxX) maxX = c.x;
+    if (c.z < minZ) minZ = c.z;
+    if (c.z > maxZ) maxZ = c.z;
+  }
+  return { minX: x + minX, maxX: x + maxX, minZ: z + minZ, maxZ: z + maxZ };
+}
+function addSolid(batch, x, z, W, D, H, yBase, yaw, rect, tint, kind, auditList, opts = {}) {
+  const cy = yBase + H / 2;
+  batch.addBox(x, cy, z, W, H, D, yaw, rect, tint, opts);
+  const aabb2d = rotatedAABB(x, z, W, D, yaw);
+  const box = {
+    minX: aabb2d.minX,
+    maxX: aabb2d.maxX,
+    minY: yBase,
+    maxY: yBase + H,
+    minZ: aabb2d.minZ,
+    maxZ: aabb2d.maxZ,
+    kind: kind || "build",
+    x,
+    z,
+    W,
+    D,
+    H,
+    yBase,
+    yaw
+  };
+  addBox(box);
+  if (auditList) {
+    auditList.push({
+      type: kind,
+      x,
+      z,
+      W,
+      D,
+      H,
+      yBase,
+      yaw,
+      minX: box.minX,
+      maxX: box.maxX,
+      minY: box.minY,
+      maxY: box.maxY,
+      minZ: box.minZ,
+      maxZ: box.maxZ,
+      expectedYBase: yBase,
+      diff: box.minY - yBase
+    });
+  }
+  return box;
+}
+function addSolidCylinder(batch, x, z, r, H, yBase, seg, rect, tint, kind, auditList) {
+  const cy = yBase;
+  batch.addCylinder(x, cy, z, r, H, seg, rect, tint);
+  const W = r * 2, D = r * 2;
+  const box = {
+    minX: x - r,
+    maxX: x + r,
+    minY: yBase,
+    maxY: yBase + H,
+    minZ: z - r,
+    maxZ: z + r,
+    kind: kind || "furn",
+    x,
+    z,
+    W,
+    D,
+    H,
+    yBase,
+    yaw: 0
+  };
+  addBox(box);
+  if (auditList) auditList.push({
+    type: kind,
+    x,
+    z,
+    W,
+    D,
+    H,
+    yBase,
+    yaw: 0,
+    minX: box.minX,
+    maxX: box.maxX,
+    minY: box.minY,
+    maxY: box.maxY,
+    minZ: box.minZ,
+    maxZ: box.maxZ,
+    expectedYBase: yBase,
+    diff: 0
+  });
+  return box;
 }
 var FURNITURE_DEFS = [
-  { type: "lamp", spacing: 60, dist: 0.4, h: 5, r: 0.08, coll: true },
-  { type: "tree", spacing: 45, dist: 0.5, h: 2.4, r: 0.12, coll: true },
+  { type: "lamp", spacing: 60, dist: 0.4, coll: true },
+  { type: "tree", spacing: 45, dist: 0.5, coll: true },
   { type: "bench", spacing: 80, dist: 1, coll: true },
   { type: "trash", spacing: 90, dist: 0.9, coll: true },
   { type: "hydrant", spacing: 120, dist: 0.8, coll: true },
@@ -421753,22 +421946,10 @@ var FURNITURE_DEFS = [
   { type: "flower", spacing: 100, dist: 1, coll: true },
   { type: "billboard", spacing: 110, dist: 0.9, coll: true },
   { type: "guard", spacing: 30, dist: 0.15, coll: true },
-  // 护栏沿主干道
-  { type: "sign", spacing: 200, dist: 0.7, coll: true },
-  // 路牌只路口
-  { type: "pole", spacing: 70, dist: 0.7, coll: true },
-  // 电线杆
-  { type: "signal", spacing: 1e3, dist: 0, coll: true }
-  // 信号灯只路口
+  { type: "pole", spacing: 70, dist: 0.7, coll: true }
 ];
-function addFurnitureBox(batch, x, y, z, sx, sy, sz, yaw, rect, tint) {
-  batch.addBox(x, y + sy / 2, z, sx, sy, sz, yaw, rect, tint);
-}
-function addFurniture(batch, def, x, z, yaw, rng, atlas) {
-  const worldY = 0;
-  const curbH = WORLD.CURB_H;
-  const baseY = curbH;
-  const tintNeutral = [0.9, 0.9, 0.9];
+function addFurniture(batch, def, x, z, yaw, rng, auditList) {
+  const baseY = WORLD.CURB_H;
   const metalRect = getAtlasRect(8);
   const brickRect = getAtlasRect(6);
   const signRect = getAtlasRect(10);
@@ -421785,7 +421966,7 @@ function addFurniture(batch, def, x, z, yaw, rng, atlas) {
       const headX = x + Math.cos(yaw) * armLen;
       const headZ = z + Math.sin(yaw) * armLen;
       batch.addBox(headX, armH - u(0.1), headZ, u(0.6), u(0.2), u(0.3), yaw, signRect, [1, 0.9, 0.6]);
-      addBox({ minX: x - u(0.08), maxX: x + u(0.08), minY: baseY, maxY: baseY + poleH, minZ: z - u(0.08), maxZ: z + u(0.08), kind: "furn" });
+      addSolidCylinder(batch, x, z, poleR, poleH, baseY, 6, metalRect, [0.7, 0.7, 0.75], "furn", auditList);
       break;
     }
     case "tree": {
@@ -421798,73 +421979,72 @@ function addFurniture(batch, def, x, z, yaw, rng, atlas) {
         const r = crownR * (1 - i * 0.15);
         batch.addBox(x, cy, z, r * 2, r * 1.2, r * 2, 0, grassRect, tints[i]);
       }
-      addBox({ minX: x - trunkR, maxX: x + trunkR, minY: baseY, maxY: baseY + trunkH, minZ: z - trunkR, maxZ: z + trunkR, kind: "furn" });
+      addSolidCylinder(batch, x, z, trunkR, trunkH, baseY, 6, metalRect, [0.4, 0.25, 0.15], "furn", auditList);
       break;
     }
     case "bench": {
       const sx = u(1.2), sy = u(0.45), sz = u(0.4);
-      addFurnitureBox(batch, x, baseY, z, sx, sy, sz, yaw, brickRect, [0.6, 0.4, 0.3]);
-      addBox({ minX: x - sx / 2, maxX: x + sx / 2, minY: baseY, maxY: baseY + sy, minZ: z - sz / 2, maxZ: z + sz / 2, kind: "furn" });
+      addSolid(batch, x, z, sx, sz, sy, baseY, yaw, brickRect, [0.6, 0.4, 0.3], "furn", auditList);
       break;
     }
     case "trash": {
       const r = u(0.25), h = u(0.7);
-      batch.addCylinder(x, baseY, z, r, h, 8, metalRect, [0.3, 0.3, 0.35]);
-      addBox({ minX: x - r, maxX: x + r, minY: baseY, maxY: baseY + h, minZ: z - r, maxZ: z + r, kind: "furn" });
+      addSolidCylinder(batch, x, z, r, h, baseY, 8, metalRect, [0.3, 0.3, 0.35], "furn", auditList);
       break;
     }
     case "hydrant": {
       const r = u(0.15), h = u(0.6);
-      batch.addCylinder(x, baseY, z, r, h, 6, metalRect, [0.9, 0.1, 0.1]);
-      addBox({ minX: x - r, maxX: x + r, minY: baseY, maxY: baseY + h, minZ: z - r, maxZ: z + r, kind: "furn" });
+      addSolidCylinder(batch, x, z, r, h, baseY, 6, metalRect, [0.9, 0.1, 0.1], "furn", auditList);
       break;
     }
     case "busSign": {
       const poleH = u(2.6);
       batch.addCylinder(x, baseY, z, u(0.05), poleH, 6, metalRect, [0.5, 0.5, 0.5]);
       batch.addBox(x, baseY + poleH - u(0.25), z, u(1.4), u(0.5), u(0.05), yaw, signRect, [0.2, 0.5, 0.9]);
-      addBox({ minX: x - u(0.1), maxX: x + u(0.1), minY: baseY, maxY: baseY + poleH, minZ: z - u(0.1), maxZ: z + u(0.1), kind: "furn" });
+      addSolidCylinder(batch, x, z, u(0.05), poleH, baseY, 6, metalRect, [0.5, 0.5, 0.5], "furn", auditList);
       break;
     }
     case "flower": {
       const sx = u(1.5), sy = u(0.4), sz = u(1.5);
-      addFurnitureBox(batch, x, baseY, z, sx, sy, sz, 0, brickRect, [0.6, 0.5, 0.4]);
+      addSolid(batch, x, z, sx, sz, sy, baseY, 0, brickRect, [0.6, 0.5, 0.4], "furn", auditList);
       batch.addBox(x, baseY + sy + u(0.15), z, u(0.8), u(0.3), u(0.8), 0, grassRect, [0.3, 0.7, 0.4]);
-      addBox({ minX: x - sx / 2, maxX: x + sx / 2, minY: baseY, maxY: baseY + sy, minZ: z - sz / 2, maxZ: z + sz / 2, kind: "furn" });
       break;
     }
     case "billboard": {
       const sx = u(1.2), sy = u(2), sz = u(0.3);
-      batch.addBox(x, baseY + sy / 2, z, sx, sy, sz, yaw, signRect, [1, 1, 1]);
-      addBox({ minX: x - sx / 2, maxX: x + sx / 2, minY: baseY, maxY: baseY + sy, minZ: z - sz / 2, maxZ: z + sz / 2, kind: "furn" });
+      const W = Math.abs(Math.cos(yaw)) > Math.abs(Math.sin(yaw)) ? sx : sz;
+      const D = Math.abs(Math.cos(yaw)) > Math.abs(Math.sin(yaw)) ? sz : sx;
+      addSolid(batch, x, z, sx, sz, sy, baseY, yaw, signRect, [1, 1, 1], "furn", auditList);
       break;
     }
     case "guard": {
       const len = u(1.5), h = u(0.5), thick = u(0.1);
-      addFurnitureBox(batch, x, baseY, z, len, h, thick, yaw, metalRect, [0.8, 0.8, 0.85]);
-      addBox({ minX: x - len / 2, maxX: x + len / 2, minY: baseY, maxY: baseY + h, minZ: z - thick / 2, maxZ: z + thick / 2, kind: "furn" });
+      const W = Math.abs(Math.cos(yaw)) * len + Math.abs(Math.sin(yaw)) * thick;
+      const D = Math.abs(Math.sin(yaw)) * len + Math.abs(Math.cos(yaw)) * thick;
+      addSolid(batch, x, z, len, thick, h, baseY, yaw, metalRect, [0.8, 0.8, 0.85], "furn", auditList);
       break;
     }
     case "pole": {
       const poleH = u(6), r = u(0.15);
-      batch.addCylinder(x, baseY, z, r, poleH, 6, metalRect, [0.5, 0.5, 0.5]);
-      addBox({ minX: x - r, maxX: x + r, minY: baseY, maxY: baseY + poleH, minZ: z - r, maxZ: z + r, kind: "furn" });
+      addSolidCylinder(batch, x, z, r, poleH, baseY, 6, metalRect, [0.5, 0.5, 0.5], "furn", auditList);
       break;
     }
     default:
       break;
   }
 }
-function addCar(batch, x, z, yaw, rng, atlas) {
+function addCar(batch, x, z, yaw, rng, auditList) {
   const len = u(2.8), wid = u(1.1), h = u(0.9);
   const colors = [[0.8, 0.1, 0.1], [0.1, 0.1, 0.8], [0.9, 0.9, 0.9], [0.2, 0.2, 0.2], [0.8, 0.8, 0.2]];
   const tint = choice(rng, colors);
   const metalRect = getAtlasRect(8);
-  batch.addBox(x, WORLD.CURB_H + h / 2, z, len, h, wid, yaw, metalRect, tint);
-  batch.addBox(x, WORLD.CURB_H + h + u(0.3), z, len * 0.6, u(0.5), wid * 0.8, yaw, metalRect, tint);
-  addBox({ minX: x - len / 2, maxX: x + len / 2, minY: WORLD.CURB_H, maxY: WORLD.CURB_H + h + u(0.5), minZ: z - wid / 2, maxZ: z + wid / 2, kind: "card" });
+  const baseY = 0;
+  addSolid(batch, x, z, len, wid, h, baseY, yaw, metalRect, tint, "car", auditList);
+  const topLen = len * 0.6, topWid = wid * 0.8, topH = u(0.5);
+  const cyTop = baseY + h + topH / 2 + u(0.05);
+  batch.addBox(x, cyTop, z, topLen, topH, topWid, yaw, metalRect, tint);
 }
-function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, atlas, isMainRoad2) {
+function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, auditList, isMainRoad2) {
   const W = u(WPH), D = u(DPH), H = u(HPH);
   const cx = cursor.x, cz = cursor.z;
   const zoneCol = choice(rng, ZONE_COLORS[zone] || ZONE_COLORS.residential);
@@ -421875,9 +422055,12 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, atlas
   const doorRect = getAtlasRect(9);
   const roofRect = getAtlasRect(12);
   const metalRect = getAtlasRect(8);
+  const isHorizontal = edge === "north" || edge === "south";
+  const yaw = isHorizontal ? 0 : Math.PI / 2;
+  const actualW = isHorizontal ? W : D;
+  const actualD = isHorizontal ? D : W;
   const floors = rng() < 0.5 ? 1 : 2;
   const baseH = u(floors * 2.2);
-  const upperH = Math.max(u(1), H - baseH);
   const hasSetback = rng() < 0.35;
   let segments = [{ h: H, inset: 0, y: 0 }];
   if (hasSetback) {
@@ -421893,42 +422076,49 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, atlas
   const hasDouble = rng() < 0.25 && !hasSetback;
   if (hasDouble) {
     const split = randRange(rng, 0.4, 0.6);
-    const W1 = W * split, W2 = W * (1 - split);
+    const W1 = actualW * split, W2 = actualW * (1 - split);
     const H1 = H, H2 = H * randRange(rng, 0.6, 1);
-    const offset = W2 / 2;
-    batch.addBox(cx - offset, H1 / 2, cz, W1, H1, D, 0, winRect, tint, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
-    addBox({ minX: cx - offset - W1 / 2, maxX: cx - offset + W1 / 2, minY: 0, maxY: H1, minZ: cz - D / 2, maxZ: cz + D / 2, kind: "build" });
-    batch.addBox(cx + W1 / 2 + W2 / 2 - offset, H2 / 2, cz, W2, H2, D, 0, winRect, tint, { uScale: W2 / u(1) / 2.5, vScale: H2 / u(1) / 2.2 });
-    addBox({ minX: cx + W1 / 2 - offset, maxX: cx + W1 / 2 + W2 - offset, minY: 0, maxY: H2, minZ: cz - D / 2, maxZ: cz + D / 2, kind: "build" });
+    let offsetX = 0, offsetZ = 0;
+    if (isHorizontal) {
+      offsetX = (W2 - W1) / 2;
+    } else {
+      offsetZ = (W2 - W1) / 2;
+    }
+    const x1 = isHorizontal ? cx - W2 / 2 : cx;
+    const z1 = isHorizontal ? cz : cz - W2 / 2;
+    addSolid(batch, x1, z1, W1, actualD, H1, 0, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
+    const x2 = isHorizontal ? cx + W1 / 2 : cx;
+    const z2 = isHorizontal ? cz : cz + W1 / 2;
+    addSolid(batch, x2, z2, W2, actualD, H2, 0, yaw, winRect, tint, "build", auditList, { uScale: W2 / u(1) / 2.5, vScale: H2 / u(1) / 2.2 });
     const parapetH2 = u(0.4);
-    batch.addBox(cx, H + parapetH2 / 2, cz, W + u(0.2), parapetH2, D + u(0.2), 0, roofRect, tint);
+    batch.addBox(cx, H + parapetH2 / 2, cz, actualW + u(0.2), parapetH2, actualD + u(0.2), yaw, roofRect, tint);
     return;
   }
   for (const seg of segments) {
-    const segW = W - seg.inset * 2;
-    const segD = D - seg.inset * 2;
+    const segW = actualW - seg.inset * 2;
+    const segD = actualD - seg.inset * 2;
     if (segW <= u(1) || segD <= u(1)) continue;
-    const segY = seg.y + seg.h / 2;
+    const segY = seg.y;
+    const segH = seg.h;
     if (seg.y < baseH) {
       const hInBase = Math.min(seg.h, baseH - seg.y);
-      batch.addBox(cx, seg.y + hInBase / 2, cz, segW, hInBase, segD, 0, doorRect, tint);
+      addSolid(batch, cx, cz, segW, segD, hInBase, seg.y, yaw, doorRect, tint, "build", auditList);
       if (seg.h > hInBase) {
         const upperSegH = seg.h - hInBase;
-        batch.addBox(cx, seg.y + hInBase + upperSegH / 2, cz, segW, upperSegH, segD, 0, winRect, tint, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
+        addSolid(batch, cx, cz, segW, segD, upperSegH, seg.y + hInBase, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
       }
     } else {
-      batch.addBox(cx, segY, cz, segW, seg.h, segD, 0, winRect, tint, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
+      addSolid(batch, cx, cz, segW, segD, segH, segY, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
     }
-    addBox({ minX: cx - segW / 2, maxX: cx + segW / 2, minY: seg.y, maxY: seg.y + seg.h, minZ: cz - segD / 2, maxZ: cz + segD / 2, kind: "build" });
   }
   const parapetH = u(0.4);
-  batch.addBox(cx, H + parapetH / 2, cz, W + u(0.1), parapetH, D + u(0.1), 0, roofRect, tint);
+  batch.addBox(cx, H + parapetH / 2, cz, actualW + u(0.1), parapetH, actualD + u(0.1), yaw, roofRect, tint);
   const distPH = Math.hypot(block.cxPH, block.czPH);
   if (distPH < 600 && isMainRoad2 && rng() < 0.45) {
     const propCount = randInt(rng, 1, 3);
     for (let i = 0; i < propCount; i++) {
-      const px = cx + (rng() - 0.5) * W * 0.6;
-      const pz = cz + (rng() - 0.5) * D * 0.6;
+      const px = cx + (rng() - 0.5) * actualW * 0.6;
+      const pz = cz + (rng() - 0.5) * actualD * 0.6;
       const pw = u(randRange(rng, 0.4, 0.8));
       const ph = u(randRange(rng, 0.4, 1));
       const pd = u(randRange(rng, 0.4, 0.8));
@@ -421936,8 +422126,11 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, atlas
     }
   }
   if (rng() < 0.6) {
-    const awningW = W * 0.8, awningD = u(0.5);
-    batch.addBox(cx, baseH + u(0.1), cz + D / 2 + awningD / 2, awningW, u(0.05), awningD, 0, metalRect, [0.9, 0.9, 0.9]);
+    const awningW = actualW * 0.8, awningD = u(0.5);
+    const awningX = cx, awningZ = cz + (isHorizontal ? edge === "north" ? actualD / 2 + awningD / 2 : -actualD / 2 - awningD / 2 : 0);
+    const awningX2 = isHorizontal ? awningX : cx + (edge === "east" ? actualW / 2 + awningD / 2 : -actualW / 2 - awningD / 2);
+    const awningZ2 = isHorizontal ? awningZ : cz;
+    batch.addBox(awningX2, baseH + u(0.1), awningZ2, isHorizontal ? awningW : awningD, u(0.05), isHorizontal ? awningD : awningW, yaw, metalRect, [0.9, 0.9, 0.9]);
   }
 }
 function buildCity(scene, opts = {}) {
@@ -421947,23 +422140,20 @@ function buildCity(scene, opts = {}) {
   const tileBlocks = CFG.TILE_BLOCKS;
   const grid2 = CFG.CITY_GRID;
   const tilesPerSide = Math.ceil(grid2 / tileBlocks);
-  const tileSizePH = tileBlocks * CFG.BLOCK_PITCH;
-  const tileSize = u(tileSizePH);
   const atlas = buildAtlas(scene);
   const atlasTex = atlas.texture;
   const cityMat = createCityMaterial(scene, atlasTex, "cityMat");
+  clearWorld();
   const cityHalf = u(grid2 * CFG.BLOCK_PITCH / 2);
   addBox({ minX: -cityHalf - 10, maxX: cityHalf + 10, minY: -1, maxY: 0, minZ: -cityHalf - 10, maxZ: cityHalf + 10, kind: "ground" });
-  const wallH = u(10);
-  const wallThick = u(2);
+  const wallH = u(10), wallThick = u(2);
   addBox({ minX: -cityHalf - wallThick, maxX: -cityHalf, minY: 0, maxY: wallH, minZ: -cityHalf - 10, maxZ: cityHalf + 10, kind: "wall" });
   addBox({ minX: cityHalf, maxX: cityHalf + wallThick, minY: 0, maxY: wallH, minZ: -cityHalf - 10, maxZ: cityHalf + 10, kind: "wall" });
   addBox({ minX: -cityHalf - 10, maxX: cityHalf + 10, minY: 0, maxY: wallH, minZ: -cityHalf - wallThick, maxZ: -cityHalf, kind: "wall" });
   addBox({ minX: -cityHalf - 10, maxX: cityHalf + 10, minY: 0, maxY: wallH, minZ: cityHalf, maxZ: cityHalf + wallThick, kind: "wall" });
   const tiles = [];
-  let totalTris = 0;
-  let totalVerts = 0;
-  let buildingCount = 0;
+  let totalTris = 0, totalVerts = 0, buildingCount = 0;
+  const auditRecords = [];
   for (let tx = 0; tx < tilesPerSide; tx++) {
     for (let tz = 0; tz < tilesPerSide; tz++) {
       const batch = new GeoBatch();
@@ -421978,80 +422168,53 @@ function buildCity(scene, opts = {}) {
       const tileCenterX = (tileMinX + tileMaxX) / 2;
       const tileCenterZ = (tileMinZ + tileMaxZ) / 2;
       const asphaltRect = getAtlasRect(4);
-      batch.addQuad(
-        { x: tileMinX, y: 0, z: tileMinZ },
-        { x: tileMaxX, y: 0, z: tileMinZ },
-        { x: tileMaxX, y: 0, z: tileMaxZ },
-        { x: tileMinX, y: 0, z: tileMaxZ },
-        asphaltRect,
-        [0.9, 0.9, 0.9]
-      );
+      batch.addQuad({ x: tileMinX, y: 0, z: tileMinZ }, { x: tileMaxX, y: 0, z: tileMinZ }, { x: tileMaxX, y: 0, z: tileMaxZ }, { x: tileMinX, y: 0, z: tileMaxZ }, asphaltRect, [0.9, 0.9, 0.9]);
       for (let bx = tileMinBX; bx <= tileMaxBX; bx++) {
         for (let bz = tileMinBZ; bz <= tileMaxBZ; bz++) {
-          const blockIdx = bx * grid2 + bz;
           const block = blocks.find((b) => b.bx === bx && b.bz === bz);
           if (!block) continue;
           const rng = mulberry32(seedFor(`b-${bx}-${bz}`, bx, bz));
           if (block.isCenterPlaza) {
             const brickRect2 = getAtlasRect(6);
-            batch.addQuad(
-              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
-              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
-              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
-              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
-              brickRect2,
-              [1, 1, 1]
-            );
+            batch.addQuad({ x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, brickRect2, [1, 1, 1]);
             const fountainR = u(2);
             batch.addCylinder(block.cx, 1e-3, block.cz, fountainR, u(0.5), 12, brickRect2, [0.8, 0.8, 0.9]);
             for (let f = 0; f < 4; f++) {
               const ang = f / 4 * Math.PI * 2;
               const fx2 = block.cx + Math.cos(ang) * u(8);
               const fz = block.cz + Math.sin(ang) * u(8);
-              batch.addBox(fx2, u(0.2), fz, u(1.5), u(0.4), u(1.5), 0, brickRect2, [0.6, 0.5, 0.4]);
+              addSolid(batch, fx2, fz, u(1.5), u(1.5), u(0.4), 0, 0, brickRect2, [0.6, 0.5, 0.4], "furn", auditRecords);
             }
             continue;
           }
           if (block.zone === "park") {
             const grassRect = getAtlasRect(7);
-            batch.addQuad(
-              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
-              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 },
-              { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
-              { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 },
-              grassRect,
-              [1, 1, 1]
-            );
+            batch.addQuad({ x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, grassRect, [1, 1, 1]);
             const treeCount = randInt(rng, 5, 12);
             for (let t = 0; t < treeCount; t++) {
               const tx2 = block.cx + (rng() - 0.5) * block.netW * 0.8;
               const tz2 = block.cz + (rng() - 0.5) * block.netD * 0.8;
-              addFurniture(batch, { type: "tree" }, tx2, tz2, 0, rng, atlas);
+              addFurniture(batch, { type: "tree" }, tx2, tz2, 0, rng, auditRecords);
             }
             for (let b = 0; b < 3; b++) {
               const bx2 = block.cx + (rng() - 0.5) * block.netW * 0.6;
               const bz2 = block.cz + (rng() - 0.5) * block.netD * 0.6;
-              addFurniture(batch, { type: "bench" }, bx2, bz2, rng() * Math.PI * 2, rng, atlas);
+              addFurniture(batch, { type: "bench" }, bx2, bz2, rng() * Math.PI * 2, rng, auditRecords);
             }
             continue;
           }
           const sidewalkW = WORLD.SIDEWALK;
           const curbH = WORLD.CURB_H;
           const brickRect = getAtlasRect(6);
-          batch.addBox(block.cx, curbH / 2, block.cz + block.netD / 2 + sidewalkW / 2, block.netW + sidewalkW * 2, curbH, sidewalkW, 0, brickRect, [1, 1, 1]);
-          addBox({ minX: block.cx - (block.netW + sidewalkW * 2) / 2, maxX: block.cx + (block.netW + sidewalkW * 2) / 2, minY: 0, maxY: curbH, minZ: block.cz + block.netD / 2, maxZ: block.cz + block.netD / 2 + sidewalkW, kind: "curb" });
-          batch.addBox(block.cx, curbH / 2, block.cz - block.netD / 2 - sidewalkW / 2, block.netW + sidewalkW * 2, curbH, sidewalkW, 0, brickRect, [1, 1, 1]);
-          addBox({ minX: block.cx - (block.netW + sidewalkW * 2) / 2, maxX: block.cx + (block.netW + sidewalkW * 2) / 2, minY: 0, maxY: curbH, minZ: block.cz - block.netD / 2 - sidewalkW, maxZ: block.cz - block.netD / 2, kind: "curb" });
-          batch.addBox(block.cx + block.netW / 2 + sidewalkW / 2, curbH / 2, block.cz, sidewalkW, curbH, block.netD, 0, brickRect, [1, 1, 1]);
-          addBox({ minX: block.cx + block.netW / 2, maxX: block.cx + block.netW / 2 + sidewalkW, minY: 0, maxY: curbH, minZ: block.cz - block.netD / 2, maxZ: block.cz + block.netD / 2, kind: "curb" });
-          batch.addBox(block.cx - block.netW / 2 - sidewalkW / 2, curbH / 2, block.cz, sidewalkW, curbH, block.netD, 0, brickRect, [1, 1, 1]);
-          addBox({ minX: block.cx - block.netW / 2 - sidewalkW, maxX: block.cx - block.netW / 2, minY: 0, maxY: curbH, minZ: block.cz - block.netD / 2, maxZ: block.cz + block.netD / 2, kind: "curb" });
+          addSolid(batch, block.cx, block.cz + block.netD / 2 + sidewalkW / 2, block.netW + sidewalkW * 2, sidewalkW, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
+          addSolid(batch, block.cx, block.cz - block.netD / 2 - sidewalkW / 2, block.netW + sidewalkW * 2, sidewalkW, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
+          addSolid(batch, block.cx + block.netW / 2 + sidewalkW / 2, block.cz, sidewalkW, block.netD, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
+          addSolid(batch, block.cx - block.netW / 2 - sidewalkW / 2, block.cz, sidewalkW, block.netD, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
           const zoneParam = ZONE_PARAMS[block.zone] || ZONE_PARAMS.residential;
           const totalBuildings = randInt(rng, 4, 8);
           const edges = ["north", "south", "east", "west"];
-          let remaining = totalBuildings;
           const perEdge = [0, 0, 0, 0];
-          for (let i = 0; i < remaining; i++) perEdge[i % 4]++;
+          for (let i = 0; i < totalBuildings; i++) perEdge[i % 4]++;
           for (let e = 0; e < 4; e++) {
             const count = perEdge[e];
             if (count === 0) continue;
@@ -422079,13 +422242,12 @@ function buildCity(scene, opts = {}) {
                 bxPos = block.cx - block.netW / 2 + u(DPH) / 2;
                 bzPos = block.cz + cursorPos + u(WPH) / 2;
               }
-              addBuilding(batch, block, edge, { x: bxPos, z: bzPos }, WPH, DPH, HPH, block.zone, rng, atlas, block.isMain);
+              addBuilding(batch, block, edge, { x: bxPos, z: bzPos }, WPH, DPH, HPH, block.zone, rng, auditRecords, block.isMain);
               buildingCount++;
               cursorPos += u(WPH + gapPH);
             }
           }
           for (const def of FURNITURE_DEFS) {
-            if (def.type === "signal" || def.type === "sign") continue;
             if (block.zone === "park") continue;
             if (def.type === "guard" && !block.isMain) continue;
             if (def.type === "pole" && block.zone !== "oldtown" && rng() > 0.3) continue;
@@ -422119,11 +422281,9 @@ function buildCity(scene, opts = {}) {
                   fz = block.cz + offset;
                   yaw = -Math.PI / 2;
                 }
-                const offX = Math.cos(yaw) * dist;
-                const offZ = Math.sin(yaw) * dist;
-                fx2 += offX * 0.2;
-                fz += offZ * 0.2;
-                addFurniture(batch, def, fx2, fz, yaw, rng, atlas);
+                fx2 += Math.cos(yaw) * dist * 0.2;
+                fz += Math.sin(yaw) * dist * 0.2;
+                addFurniture(batch, def, fx2, fz, yaw, rng, auditRecords);
               }
             }
           }
@@ -422150,35 +422310,24 @@ function buildCity(scene, opts = {}) {
                 cz = block.cz + offset;
                 yaw = -Math.PI / 2;
               }
-              addCar(batch, cx, cz, yaw, rng, atlas);
+              addCar(batch, cx, cz, yaw, rng, auditRecords);
             }
           }
-          if (isMainRoad(bx) || isMainRoad(bz)) {
+          if (isMainRoad(bx) && isMainRoad(bz)) {
             const zebraRect = getAtlasRect(13);
-            if (isMainRoad(bx) && isMainRoad(bz)) {
-              const ix = u((bx - grid2 / 2) * CFG.BLOCK_PITCH);
-              const iz = u((bz - grid2 / 2) * CFG.BLOCK_PITCH);
-              const zw = u(3), zl = u(1);
-              for (let dir = 0; dir < 4; dir++) {
-                const ang = dir * Math.PI / 2;
-                const px = ix + Math.cos(ang) * u(4);
-                const pz = iz + Math.sin(ang) * u(4);
-                batch.addQuad(
-                  { x: px - zw / 2, y: 2e-3, z: pz - zl / 2 },
-                  { x: px + zw / 2, y: 2e-3, z: pz - zl / 2 },
-                  { x: px + zw / 2, y: 2e-3, z: pz + zl / 2 },
-                  { x: px - zw / 2, y: 2e-3, z: pz + zl / 2 },
-                  zebraRect,
-                  [1, 1, 1],
-                  [0, 1, 0]
-                );
-              }
+            const ix = u((bx - grid2 / 2) * CFG.BLOCK_PITCH);
+            const iz = u((bz - grid2 / 2) * CFG.BLOCK_PITCH);
+            const zw = u(3), zl = u(1);
+            for (let dir = 0; dir < 4; dir++) {
+              const ang = dir * Math.PI / 2;
+              const px = ix + Math.cos(ang) * u(4);
+              const pz = iz + Math.sin(ang) * u(4);
+              batch.addQuad({ x: px - zw / 2, y: 2e-3, z: pz - zl / 2 }, { x: px + zw / 2, y: 2e-3, z: pz - zl / 2 }, { x: px + zw / 2, y: 2e-3, z: pz + zl / 2 }, { x: px - zw / 2, y: 2e-3, z: pz + zl / 2 }, zebraRect, [1, 1, 1], [0, 1, 0]);
             }
           }
         }
       }
-      const data = batch;
-      const stats2 = data.getStats();
+      const stats2 = batch.getStats();
       totalTris += stats2.triangles;
       totalVerts += stats2.vertices;
       let mesh = null;
@@ -422188,17 +422337,15 @@ function buildCity(scene, opts = {}) {
           if (Mesh2 && VertexData2) {
             mesh = new Mesh2(`cityTile_${tx}_${tz}`, scene);
             const vd = new VertexData2();
-            vd.positions = data.pos;
-            vd.normals = data.nrm;
-            vd.uvs = data.uv;
-            vd.colors = data.col;
-            vd.indices = data.idx;
+            vd.positions = batch.pos;
+            vd.normals = batch.nrm;
+            vd.uvs = batch.uv;
+            vd.colors = batch.col;
+            vd.indices = batch.idx;
             vd.applyToMesh(mesh, false);
             mesh.material = cityMat;
             mesh.isPickable = false;
             mesh.receiveShadows = true;
-            mesh.castShadows = false;
-          } else {
           }
         } catch (e) {
           console.warn("[city] tile mesh failed", e);
@@ -422214,22 +422361,21 @@ function buildCity(scene, opts = {}) {
         centerX: tileCenterX,
         centerZ: tileCenterZ,
         mesh,
-        batch: data,
+        batch,
         stats: stats2
       });
     }
   }
   const landmarks = [];
   {
-    const towerH = u(120);
-    const towerR = u(0.5);
+    const towerH = u(120), towerR = u(0.5);
     const tx = u(30), tz = u(10);
     const batch = new GeoBatch();
     const metalRect = getAtlasRect(8);
     batch.addCylinder(tx, 0, tz, towerR, towerH * 0.8, 8, metalRect, [0.7, 0.7, 0.75]);
     batch.addCylinder(tx, towerH * 0.7, tz, u(3), u(0.5), 12, metalRect, [0.8, 0.8, 0.85]);
     batch.addCylinder(tx, towerH * 0.8, tz, u(0.1), towerH * 0.2, 6, metalRect, [0.6, 0.6, 0.65]);
-    addBox({ minX: tx - towerR, maxX: tx + towerR, minY: 0, maxY: towerH, minZ: tz - towerR, maxZ: tz + towerR, kind: "build" });
+    addSolidCylinder(batch, tx, tz, towerR, towerH, 0, 8, metalRect, [0.7, 0.7, 0.75], "build", auditRecords);
     landmarks.push({ type: "tvTower", x: tx, z: tz, h: towerH, batch });
   }
   {
@@ -422237,11 +422383,10 @@ function buildCity(scene, opts = {}) {
     const cx = u(5), cz = u(5);
     const batch = new GeoBatch();
     const brickRect = getAtlasRect(6);
-    batch.addBox(cx, towerH / 2, cz, u(4), towerH, u(4), 0, brickRect, [0.8, 0.75, 0.7]);
+    addSolid(batch, cx, cz, u(4), u(4), towerH, 0, 0, brickRect, [0.8, 0.75, 0.7], "build", auditRecords);
     const signRect = getAtlasRect(10);
     batch.addBox(cx, towerH * 0.8, cz + u(2.1), u(1.5), u(1.5), u(0.1), 0, signRect, [1, 1, 1]);
     batch.addCylinder(cx, towerH, cz, u(0.1), u(3), 4, brickRect, [0.6, 0.3, 0.2]);
-    addBox({ minX: cx - u(2), maxX: cx + u(2), minY: 0, maxY: towerH + u(3), minZ: cz - u(2), maxZ: cz + u(2), kind: "build" });
     landmarks.push({ type: "clockTower", x: cx, z: cz, h: towerH, batch });
   }
   let skylineMesh = null;
@@ -422264,14 +422409,13 @@ function buildCity(scene, opts = {}) {
         const d = u(randRange(rng, 3, 6));
         skylineBatch.addBox(x, h / 2, z, w, h, d, -ang, silhouetteRect, silhouetteColor);
       }
-      const data = skylineBatch;
       const mesh = new BABYLON3.Mesh("skylineRing", scene);
       const vd = new BABYLON3.VertexData();
-      vd.positions = data.pos;
-      vd.normals = data.nrm;
-      vd.uvs = data.uv;
-      vd.colors = data.col;
-      vd.indices = data.idx;
+      vd.positions = skylineBatch.pos;
+      vd.normals = skylineBatch.nrm;
+      vd.uvs = skylineBatch.uv;
+      vd.colors = skylineBatch.col;
+      vd.indices = skylineBatch.idx;
       vd.applyToMesh(mesh, false);
       const mat = new BABYLON3.StandardMaterial("skylineMat", scene);
       mat.diffuseColor = new BABYLON3.Color3(0.35, 0.42, 0.52);
@@ -422286,15 +422430,22 @@ function buildCity(scene, opts = {}) {
   }
   const endTime = performance.now();
   const genTime = endTime - startTime;
+  let floating = [], sinking = [];
+  for (const rec of auditRecords) {
+    const diff = rec.minY - rec.expectedYBase;
+    if (diff > 0.01) floating.push(rec);
+    if (diff < -0.01) sinking.push(rec);
+  }
   const stats = {
     tileCount: tiles.length,
     buildingCount,
     triCount: totalTris,
     vertCount: totalVerts,
-    aabbCount: 0,
-    // 稍后从 collide 获取
+    aabbCount: getBoxes().length,
     genTime,
-    atlasSize: 1024
+    atlasSize: Q.atlasSize,
+    floatingCount: floating.length,
+    sinkingCount: sinking.length
   };
   return {
     tiles,
@@ -422304,6 +422455,9 @@ function buildCity(scene, opts = {}) {
     atlas,
     material: cityMat,
     stats,
+    auditRecords,
+    floating,
+    sinking,
     center: { x: 0, z: 0 }
   };
 }
@@ -422317,14 +422471,11 @@ function updateCityCulling(playerPos, city) {
     const dz = tile.centerZ - playerPos.z;
     const d2 = dx * dx + dz * dz;
     const shouldShow = d2 <= cull2;
-    if (tile.mesh.isEnabled() !== shouldShow) {
-      tile.mesh.setEnabled(shouldShow);
-    }
+    if (tile.mesh.isEnabled() !== shouldShow) tile.mesh.setEnabled(shouldShow);
   }
 }
 function setupSkyAndLights(scene, opts = {}) {
   if (!scene) return null;
-  let skyMesh = null;
   try {
     const BABYLON3 = window.BABYLON;
     if (!BABYLON3) return null;
@@ -422350,25 +422501,17 @@ function setupSkyAndLights(scene, opts = {}) {
     skyMat.emissiveColor = new BABYLON3.Color3(1, 1, 1);
     skyMat.backFaceCulling = false;
     skyMat.disableLighting = true;
-    skyMesh = BABYLON3.MeshBuilder.CreateSphere("skySphere", { diameter: 200, segments: 16 }, scene);
+    const skyMesh = BABYLON3.MeshBuilder.CreateSphere("skySphere", { diameter: 200, segments: 16 }, scene);
     skyMesh.material = skyMat;
     skyMesh.isPickable = false;
     skyMesh.infiniteDistance = true;
-    skyMesh.renderingGroupId = 0;
     scene.fogMode = BABYLON3.Scene.FOGMODE_EXP2;
     scene.fogColor = new BABYLON3.Color3(0.79, 0.64, 0.48);
     scene.fogDensity = CFG.FOG_DENSITY;
-    const sunDir = new BABYLON3.Vector3(
-      Math.cos(200 * Math.PI / 180) * Math.cos(8 * Math.PI / 180),
-      -Math.sin(8 * Math.PI / 180),
-      Math.sin(200 * Math.PI / 180) * Math.cos(8 * Math.PI / 180)
-    );
+    const sunDir = new BABYLON3.Vector3(Math.cos(200 * Math.PI / 180) * Math.cos(8 * Math.PI / 180), -Math.sin(8 * Math.PI / 180), Math.sin(200 * Math.PI / 180) * Math.cos(8 * Math.PI / 180));
     let dirLight = scene.lights ? scene.lights.find((l) => l.name === "dir") : null;
-    if (!dirLight) {
-      dirLight = new BABYLON3.DirectionalLight("sun", sunDir, scene);
-    } else {
-      dirLight.direction = sunDir;
-    }
+    if (!dirLight) dirLight = new BABYLON3.DirectionalLight("sun", sunDir, scene);
+    else dirLight.direction = sunDir;
     dirLight.intensity = 2.2;
     dirLight.diffuse = new BABYLON3.Color3(1, 0.84, 0.66);
     if (dirLight) {
@@ -422376,24 +422519,20 @@ function setupSkyAndLights(scene, opts = {}) {
       dirLight.shadowMaxZ = 60;
     }
     let hemi = scene.lights ? scene.lights.find((l) => l.name === "hemi") : null;
-    if (!hemi) {
-      hemi = new BABYLON3.HemisphericLight("hemiSky", new BABYLON3.Vector3(0, 1, 0), scene);
-    }
+    if (!hemi) hemi = new BABYLON3.HemisphericLight("hemiSky", new BABYLON3.Vector3(0, 1, 0), scene);
     hemi.intensity = 0.35;
     hemi.diffuse = new BABYLON3.Color3(0.42, 0.49, 0.66);
     hemi.groundColor = new BABYLON3.Color3(0.23, 0.23, 0.27);
     const fillDir = sunDir.scale(-1);
     let fill = scene.lights ? scene.lights.find((l) => l.name === "fill") : null;
-    if (!fill) {
-      fill = new BABYLON3.DirectionalLight("fillLight", fillDir, scene);
-    }
+    if (!fill) fill = new BABYLON3.DirectionalLight("fillLight", fillDir, scene);
     fill.intensity = 0.25;
     fill.diffuse = new BABYLON3.Color3(0.8, 0.8, 0.9);
     scene.clearColor = new BABYLON3.Color4(0.13, 0.14, 0.17, 1);
     scene.ambientColor = new BABYLON3.Color3(0.35, 0.35, 0.38);
     return { skyMesh, dirLight, hemiLight: hemi, fillLight: fill };
   } catch (e) {
-    console.warn("[city] setup sky/lights failed", e);
+    console.warn("[city] sky/lights failed", e);
     return null;
   }
 }
@@ -424455,27 +424594,49 @@ function showCollisionDebug(scene) {
   hideCollisionDebug();
   const BABYLON3 = window.BABYLON;
   if (!BABYLON3) return;
+  try {
+    const { query: query2 } = __require ? {} : {};
+  } catch (e) {
+  }
   const boxes2 = getBoxes();
-  for (let i = 0; i < Math.min(boxes2.length, 200); i++) {
+  let center = { x: 0, z: 0 };
+  try {
+    if (player) center = player.pos;
+  } catch (e) {
+  }
+  const radius = 20;
+  let shown = 0;
+  for (let i = 0; i < boxes2.length && shown < 300; i++) {
     const b = boxes2[i];
     if (b.kind === "ground") continue;
+    const dx = (b.minX + b.maxX) / 2 - center.x;
+    const dz = (b.minZ + b.maxZ) / 2 - center.z;
+    if (dx * dx + dz * dz > radius * radius) continue;
     try {
       const mesh = BABYLON3.MeshBuilder.CreateBox(`dbg_${i}`, {
-        width: b.maxX - b.minX,
-        height: b.maxY - b.minY,
-        depth: b.maxZ - b.minZ
+        width: Math.max(0.01, b.maxX - b.minX),
+        height: Math.max(0.01, b.maxY - b.minY),
+        depth: Math.max(0.01, b.maxZ - b.minZ)
       }, scene);
       mesh.position.set((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, (b.minZ + b.maxZ) / 2);
       const mat = new BABYLON3.StandardMaterial(`dbgMat_${i}`, scene);
       mat.wireframe = true;
-      mat.emissiveColor = new BABYLON3.Color3(1, 0, 0);
+      let col = new BABYLON3.Color3(1, 0, 0);
+      if (b.kind === "furn") col = new BABYLON3.Color3(1, 1, 0);
+      else if (b.kind === "car" || b.kind === "card") col = new BABYLON3.Color3(0, 0.6, 1);
+      else if (b.kind === "wall") col = new BABYLON3.Color3(1, 0, 1);
+      else if (b.kind === "curb") col = new BABYLON3.Color3(0, 1, 0);
+      mat.emissiveColor = col;
+      mat.disableLighting = true;
       mesh.material = mat;
       mesh.isPickable = false;
       mesh.renderingGroupId = 2;
       debugMeshes.push(mesh);
+      shown++;
     } catch (e) {
     }
   }
+  console.log(`[city] debug collision shown ${shown}/${boxes2.length}`);
 }
 function hideCollisionDebug() {
   for (const m of debugMeshes) {
