@@ -1,6 +1,6 @@
 // esbuild 打包: src/main.js -> dist/main.js + 资源(wasm)
 import { build } from "esbuild";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 await build({
@@ -19,6 +19,7 @@ await build({
     ".png": "file",
     ".jpg": "file",
     ".bin": "file",
+    ".vmd": "file",
   },
   assetNames: "assets/[name]-[hash]",
   define: {},
@@ -26,7 +27,6 @@ await build({
 
 // babylon-mmd 单线程 SPR 物理运行时通过 `new URL('index_bg.wasm', import.meta.url)`
 // 动态加载 wasm —— esbuild 不会自动复制这个文件, 需手动拷到 dist/ 与 main.js 同目录。
-// (源: node_modules/babylon-mmd/esm/Runtime/Optimized/wasm/spr/index_bg.wasm)
 try {
   const src = join(
     "node_modules/babylon-mmd/esm/Runtime/Optimized/wasm/spr/index_bg.wasm"
@@ -37,6 +37,27 @@ try {
   console.log("copied index_bg.wasm -> dist/index_bg.wasm");
 } catch (e) {
   console.error("WARN could not copy index_bg.wasm:", e.message);
+}
+
+try {
+  const srcDir = "src/game/motions";
+  const dstDir = "dist/motions";
+  mkdirSync(dstDir, { recursive: true });
+  if (existsSync(srcDir)) {
+    for (const f of readdirSync(srcDir)) {
+      copyFileSync(join(srcDir, f), join(dstDir, f));
+      console.log("copied " + join(srcDir, f) + " -> " + join(dstDir, f));
+    }
+  }
+  const dst2 = "dist/game/motions";
+  mkdirSync(dst2, { recursive: true });
+  if (existsSync(srcDir)) {
+    for (const f of readdirSync(srcDir)) {
+      copyFileSync(join(srcDir, f), join(dst2, f));
+    }
+  }
+} catch (e) {
+  console.error("copy motions fail", e.message);
 }
 
 console.log("done");

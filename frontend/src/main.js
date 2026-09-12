@@ -58,6 +58,7 @@ import { SSAO2RenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipe
 import "@babylonjs/loaders/glTF/2.0/glTFLoader";
 import "@babylonjs/loaders/OBJ";
 import "@babylonjs/loaders/STL";
+import { installCityMode } from "./game/index.js";
 
 // ⚠️ glTF 扩展: Babylon 的 glTF loader 默认只注册核心扩展, Blender/npm 导出的 glb 常用到
 //    KHR_texture_transform(UV变换)、EXT_texture_webp(.webp贴图)、各种 KHR_materials_* 材质扩展。
@@ -1403,6 +1404,9 @@ async function main() {
     // 首次不再内置加载默认模型 —— 等用户在文件库选择模型(不内置模型进 APK)。
     statusEl.textContent = "[就绪] 请在右侧“文件库”选择文件夹并加载模型";
     engine.runRenderLoop(renderFrame);
+
+    // 游戏玩法安装
+    try { installCityMode(window.__mmd); } catch (e) { console.warn("[city] install fail", e); }
 
     // 暴露运行时切换接口(供 App 原生/JS 调用)
     window.__mmdLoad = {
