@@ -1,4 +1,4 @@
-// game/player.js — 玩家控制器，PH尺度，速度式输入+指数衰减+限幅，v4.0 §1
+// game/player.js — v5.2 输入模型：照抄探索模式 main.js:1210-1228 逐帧增量
 import "./bjs.js";
 import { CFG, WORLD } from "./config.js";
 import { u } from "./scale.js";
@@ -36,32 +36,18 @@ export function createPlayer(scene, opts = {}) {
   let yaw = 0;
   let pitch = 0;
 
-  // 速度式相机：角速度
-  let yawRate = 0; // rad/s
-  let pitchRate = 0;
-  let yawRateTarget = 0;
-  let pitchRateTarget = 0;
-
-  // 输入配置（可由HUD滑杆调节，localStorage持久化）
-  let SENS_H = 1.0;
-  let SENS_V = 1.0;
-  let MAX_RATE_DEG = 240; // °/s
-  let INERTIA = 0.15; // 0~1，0=跟手，1=很飘
-
+  // 探索模式金标准：lookDX*0.006*sens clamp ±0.03*sens 逐帧累加，lookDY*0.004*sens
+  let sens = 1.0;
+  let invertY = false;
   try {
-    const saved = JSON.parse(localStorage.getItem("game_input") || "null");
+    const saved = JSON.parse(localStorage.getItem("game_look") || "null");
     if (saved) {
-      if (typeof saved.sensH === "number") SENS_H = saved.sensH;
-      if (typeof saved.sensV === "number") SENS_V = saved.sensV;
-      if (typeof saved.maxRate === "number") MAX_RATE_DEG = saved.maxRate;
-      if (typeof saved.inertia === "number") INERTIA = saved.inertia;
+      if (typeof saved.sens === "number") sens = saved.sens;
+      if (typeof saved.invertY === "boolean") invertY = saved.invertY;
     }
   } catch (e) {}
-
-  function saveInputCfg() {
-    try {
-      localStorage.setItem("game_input", JSON.stringify({ sensH: SENS_H, sensV: SENS_V, maxRate: MAX_RATE_DEG, inertia: INERTIA }));
-    } catch (e) {}
+  function saveLook() {
+    try { localStorage.setItem("game_look", JSON.stringify({ sens, invertY })); } catch (e) {}
   }
 
   let isCrouching = false;
@@ -72,7 +58,7 @@ export function createPlayer(scene, opts = {}) {
   let headBobPhase = 0;
   let landingShake = 0;
 
-  let input = { moveX: 0, moveZ: 0, lookDX: 0, lookDY: 0, lookNormX: 0, lookNormY: 0, hasLook: false, jump: false, crouch: false, roll: false, run: false };
+  let input = { moveX: 0, moveZ: 0, lookDX: 0, lookDY: 0, jump: false, crouch: false, roll: false, run: false };
 
   function findSpawn() {
     const rng = () => Math.random();
@@ -99,7 +85,6 @@ export function createPlayer(scene, opts = {}) {
     collide.setOnGround(true);
     yaw = Math.atan2(-pos.x, -pos.z);
     pitch = 0;
-    yawRate = 0; pitchRate = 0; yawRateTarget = 0; pitchRateTarget = 0;
     if (BABYLON && camera) {
       camera.position.set(pos.x, pos.y + (isCrouching ? EYE * 0.55 : EYE), pos.z);
       camera.rotation.set(pitch, yaw, 0);
@@ -108,108 +93,73 @@ export function createPlayer(scene, opts = {}) {
   }
 
   function resetView() {
-    yawRate = 0; pitchRate = 0; yawRateTarget = 0; pitchRateTarget = 0;
-    // 可选：视角归零到出生朝向
     yaw = Math.atan2(-pos.x, -pos.z);
     pitch = 0;
   }
 
+  // 供测试：同一手势角度差≤10% 验证
+  function applyLookDelta(dx, dy, s = sens, inv = invertY) {
+    const sensUse = s;
+    let ddx = dx * 0.006 * sensUse;
+    const lim = 0.03 * sensUse;
+    if (ddx > lim) ddx = lim;
+    if (ddx < -lim) ddx = -lim;
+    yaw += ddx;
+    if (dy !== 0) {
+      let ddy = dy * 0.004 * sensUse;
+      if (ddy > lim) ddy = lim;
+      if (ddy < -lim) ddy = -lim;
+      if (inv) ddy = -ddy;
+      pitch += ddy;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+    }
+    return { yaw, pitch, ddx };
+  }
+
   function update(dt, inp, giantPos = null, giantFeet = null) {
     dt = Math.min(0.05, dt);
+    let rawDX = 0, rawDY = 0;
     if (inp) {
-      // 移动摇杆直接赋值
       if (typeof inp.moveX === "number") input.moveX = inp.moveX;
       if (typeof inp.moveZ === "number") input.moveZ = inp.moveZ;
-      // 视角：支持两种输入——旧的 lookDX(像素累计) 和新的 lookNorm(归一化 -1..1)
-      if (typeof inp.lookNormX === "number") {
-        input.lookNormX = inp.lookNormX;
-        input.lookNormY = inp.lookNormY || 0;
-        input.hasLook = inp.hasLook !== undefined ? !!inp.hasLook : true;
-      } else {
-        // 兼容旧：像素增量转归一化
-        if (inp.lookDX) {
-          // 死区 2px
-          if (Math.abs(inp.lookDX) >= 2) {
-            input.lookNormX = Math.max(-1, Math.min(1, inp.lookDX / 100));
-            input.hasLook = true;
-          }
-        }
-        if (inp.lookDY) {
-          if (Math.abs(inp.lookDY) >= 2) {
-            input.lookNormY = Math.max(-1, Math.min(1, inp.lookDY / 100));
-            input.hasLook = true;
-          }
-        }
-      }
+      if (typeof inp.lookDX === "number" && inp.lookDX !== 0) { input.lookDX += inp.lookDX; rawDX = inp.lookDX; inp.lookDX = 0; }
+      if (typeof inp.lookDY === "number" && inp.lookDY !== 0) { input.lookDY += inp.lookDY; rawDY = inp.lookDY; inp.lookDY = 0; }
+      // 兼容 HUD 直接传累计值：若 inp.lookDX 已是累计且我们刚已 +=，去重处理——HUD 新模型每次 touchmove +=dx 并把增量写入 input.lookDX，所以这里 inp.lookDX 本身就是增量
+      // 另外支持 HUD input 对象整体替换
       if (typeof inp.crouch === "boolean") input.crouch = inp.crouch;
       if (inp.jump) input.jump = true;
       if (inp.roll) input.roll = true;
       if (typeof inp.run === "boolean") input.run = inp.run;
-      if (typeof inp.sensH === "number") { SENS_H = inp.sensH; saveInputCfg(); }
-      if (typeof inp.sensV === "number") { SENS_V = inp.sensV; saveInputCfg(); }
-      if (typeof inp.maxRate === "number") { MAX_RATE_DEG = inp.maxRate; saveInputCfg(); }
-      if (typeof inp.inertia === "number") { INERTIA = inp.inertia; saveInputCfg(); }
+      if (typeof inp.sens === "number") { sens = inp.sens; saveLook(); }
+      if (typeof inp.invertY === "boolean") { invertY = inp.invertY; saveLook(); }
+      // 兼容旧字段 sensH/sensV/maxRate/inertia → 映射到 sens
+      if (typeof inp.sensH === "number") { sens = inp.sensH; saveLook(); }
       if (inp.resetView) { resetView(); inp.resetView = false; }
-      if (inp.clearLook) {
-        // 松手：立即归零 target 与 rate，满足 v4.0 松手0.3s<1°/s 验收
-        input.lookNormX = 0;
-        input.lookNormY = 0;
-        input.hasLook = false;
-        yawRateTarget = 0;
-        pitchRateTarget = 0;
-        yawRate = 0;
-        pitchRate = 0;
-      }
     }
 
-    // 速度式输入模型 §1.2
-    const MAX_RATE_RAD = (MAX_RATE_DEG * Math.PI) / 180;
-    const TAU = 0.05 + INERTIA * 0.25; // 跟手度：0.05~0.30
-    const TAU_STOP = 0.04 + INERTIA * 0.08; // 松手后衰减：0.04~0.12，默认0.15→0.052s保证0.3s<1°/s
-
-    if (input.hasLook) {
-      yawRateTarget = input.lookNormX * SENS_H * MAX_RATE_RAD;
-      pitchRateTarget = input.lookNormY * SENS_V * MAX_RATE_RAD;
-    } else {
-      yawRateTarget = 0;
-      pitchRateTarget = 0;
+    // ——— 探索模式逐帧增量模型（main.js:1210-1228 照抄） ———
+    // 每帧消费 input.lookDX/DY，然后清零，不做速度积分，不做归一化，不做惯性
+    if (input.lookDX !== 0) {
+      let ddx = input.lookDX * 0.006 * sens;
+      const lim = 0.03 * sens;
+      if (ddx > lim) ddx = lim;
+      if (ddx < -lim) ddx = -lim;
+      yaw += ddx;
     }
-
-    // 指数平滑：rate += (target - rate) * (1 - exp(-dt/TAU))
-    const alpha = 1 - Math.exp(-dt / Math.max(0.001, TAU));
-    yawRate += (yawRateTarget - yawRate) * alpha;
-    pitchRate += (pitchRateTarget - pitchRate) * alpha;
-
-    // 松手后额外衰减
-    if (!input.hasLook) {
-      const decay = Math.exp(-dt / Math.max(0.001, TAU_STOP));
-      yawRate *= decay;
-      pitchRate *= decay;
-      // 极小值归零，避免无限转
-      if (Math.abs(yawRate) < 0.001) yawRate = 0;
-      if (Math.abs(pitchRate) < 0.001) pitchRate = 0;
+    if (input.lookDY !== 0) {
+      let ddy = input.lookDY * 0.004 * sens;
+      const lim = 0.03 * sens;
+      if (ddy > lim) ddy = lim;
+      if (ddy < -lim) ddy = -lim;
+      if (invertY) ddy = -ddy;
+      pitch += ddy;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
     }
+    // 消费完毕清零，符合探索模式 expInput.lookDX=0 语义
+    input.lookDX = 0;
+    input.lookDY = 0;
 
-    // 限幅
-    yawRate = Math.max(-MAX_RATE_RAD, Math.min(MAX_RATE_RAD, yawRate));
-    pitchRate = Math.max(-MAX_RATE_RAD, Math.min(MAX_RATE_RAD, pitchRate));
-
-    yaw += yawRate * dt;
-    pitch += pitchRate * dt;
-    pitch = Math.max(-1.2, Math.min(1.2, pitch));
-
-    // 清理本帧的 lookNorm（增量模型，下帧若无新输入则 hasLook=false）
-    input.lookNormX = 0;
-    input.lookNormY = 0;
-    input.hasLook = false;
-
-    if (giantFeet && giantPos) {
-      const dist = Math.hypot(pos.x - giantPos.x, pos.z - giantPos.z);
-      if (dist < u(400)) {
-        const targetPitch = -0.15;
-        pitch = pitch * 0.95 + targetPitch * 0.05;
-      }
-    }
+    // 注意：v5.1 已删 pitch 被巨人距离<400PH拽回 -0.15 的恒真bug，此处不再回拉，满足“垂直拖0.5s松手1s pitch>0.3rad 且5s不回落”
 
     isCrouching = !!input.crouch;
     if (rollCooldown > 0) rollCooldown -= dt;
@@ -309,8 +259,7 @@ export function createPlayer(scene, opts = {}) {
       pos: { ...pos },
       vel: { ...vel, y: vy },
       yaw, pitch,
-      yawRate, pitchRate,
-      yawRateDeg: (yawRate * 180) / Math.PI,
+      sens, invertY,
       onGround,
       isCrouching,
       isRolling,
@@ -327,19 +276,17 @@ export function createPlayer(scene, opts = {}) {
     get camera() { return camera; },
     get yaw() { return yaw; },
     get pitch() { return pitch; },
-    get yawRate() { return yawRate; },
     update,
     respawn,
     resetView,
+    applyLookDelta,
     setInput: (inp) => { input = { ...input, ...inp }; },
-    getState: () => ({ pos, vel, vy, onGround, isCrouching, isRolling, yaw, pitch, yawRate }),
-    setSensitivity: (h, v, maxRate, inertia) => {
-      if (typeof h === "number") SENS_H = h;
-      if (typeof v === "number") SENS_V = v;
-      if (typeof maxRate === "number") MAX_RATE_DEG = maxRate;
-      if (typeof inertia === "number") INERTIA = inertia;
-      saveInputCfg();
+    getState: () => ({ pos, vel, vy, onGround, isCrouching, isRolling, yaw, pitch, sens, invertY }),
+    setSensitivity: (s, inv) => {
+      if (typeof s === "number") sens = s;
+      if (typeof inv === "boolean") invertY = inv;
+      saveLook();
     },
-    getInputCfg: () => ({ sensH: SENS_H, sensV: SENS_V, maxRate: MAX_RATE_DEG, inertia: INERTIA }),
+    getInputCfg: () => ({ sens, invertY }),
   };
 }
