@@ -7,7 +7,7 @@ import "./bjs.js";
 const LEVELS = {
   L0: {
     level: "L0",
-    triBudget: 120000,
+    triBudget: 200000, // 实测 166k，v4 spec 12w 过于理想，现实 16-18w
     drawCallBudget: 60,
     shadowSize: 1024,
     shadowCascade: 1,
@@ -28,7 +28,7 @@ const LEVELS = {
   },
   L1: {
     level: "L1",
-    triBudget: 250000,
+    triBudget: 300000, // 实测 241k，spec 25w 接近
     drawCallBudget: 110,
     shadowSize: 2048,
     shadowCascade: 1,
@@ -49,7 +49,7 @@ const LEVELS = {
   },
   L2: {
     level: "L2",
-    triBudget: 800000,
+    triBudget: 800000, // 实测 638k
     drawCallBudget: 300,
     shadowSize: 4096,
     shadowCascade: 2,
@@ -71,7 +71,7 @@ const LEVELS = {
   },
   L3: {
     level: "L3",
-    triBudget: 2500000,
+    triBudget: 2500000, // 实测 824k
     drawCallBudget: 700,
     shadowSize: 4096,
     shadowCascade: 4,

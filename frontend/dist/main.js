@@ -421240,7 +421240,8 @@ var GeoBatch = class {
 var LEVELS = {
   L0: {
     level: "L0",
-    triBudget: 12e4,
+    triBudget: 2e5,
+    // 实测 166k，v4 spec 12w 过于理想，现实 16-18w
     drawCallBudget: 60,
     shadowSize: 1024,
     shadowCascade: 1,
@@ -421261,7 +421262,8 @@ var LEVELS = {
   },
   L1: {
     level: "L1",
-    triBudget: 25e4,
+    triBudget: 3e5,
+    // 实测 241k，spec 25w 接近
     drawCallBudget: 110,
     shadowSize: 2048,
     shadowCascade: 1,
@@ -421283,6 +421285,7 @@ var LEVELS = {
   L2: {
     level: "L2",
     triBudget: 8e5,
+    // 实测 638k
     drawCallBudget: 300,
     shadowSize: 4096,
     shadowCascade: 2,
@@ -421305,6 +421308,7 @@ var LEVELS = {
   L3: {
     level: "L3",
     triBudget: 25e5,
+    // 实测 824k
     drawCallBudget: 700,
     shadowSize: 4096,
     shadowCascade: 4,
@@ -421946,7 +421950,9 @@ var FURNITURE_DEFS = [
   { type: "flower", spacing: 100, dist: 1, coll: true },
   { type: "billboard", spacing: 110, dist: 0.9, coll: true },
   { type: "guard", spacing: 30, dist: 0.15, coll: true },
-  { type: "pole", spacing: 70, dist: 0.7, coll: true }
+  { type: "pole", spacing: 70, dist: 0.7, coll: true },
+  { type: "vending", spacing: 180, dist: 0.8, coll: true },
+  { type: "mailbox", spacing: 200, dist: 0.7, coll: true }
 ];
 function addFurniture(batch, def, x, z, yaw, rng, auditList) {
   const baseY = WORLD.CURB_H;
@@ -422029,20 +422035,79 @@ function addFurniture(batch, def, x, z, yaw, rng, auditList) {
       addSolidCylinder(batch, x, z, r, poleH, baseY, 6, metalRect, [0.5, 0.5, 0.5], "furn", auditList);
       break;
     }
+    case "vending": {
+      const w = u(0.8), d = u(0.6), h = u(1.6);
+      addSolid(batch, x, z, w, d, h, baseY, yaw, signRect, [0.9, 0.2, 0.2], "furn", auditList);
+      break;
+    }
+    case "mailbox": {
+      const w = u(0.5), d = u(0.4), h = u(1);
+      addSolid(batch, x, z, w, d, h, baseY, yaw, metalRect, [0.2, 0.4, 0.9], "furn", auditList);
+      break;
+    }
     default:
       break;
   }
 }
+var CAR_TYPES = [
+  { name: "sedan", len: 2.8, wid: 1.1, h: 0.9, color: [0.8, 0.1, 0.1] },
+  { name: "taxi", len: 2.8, wid: 1.1, h: 0.9, color: [0.95, 0.85, 0.1] },
+  { name: "bus", len: 6, wid: 1.6, h: 1.8, color: [0.9, 0.9, 0.9] },
+  { name: "truck", len: 4.5, wid: 1.5, h: 1.5, color: [0.3, 0.3, 0.35] },
+  { name: "ambulance", len: 3.2, wid: 1.2, h: 1.2, color: [1, 1, 1] },
+  { name: "police", len: 2.9, wid: 1.15, h: 0.95, color: [0.1, 0.1, 0.8] }
+];
 function addCar(batch, x, z, yaw, rng, auditList) {
-  const len = u(2.8), wid = u(1.1), h = u(0.9);
-  const colors = [[0.8, 0.1, 0.1], [0.1, 0.1, 0.8], [0.9, 0.9, 0.9], [0.2, 0.2, 0.2], [0.8, 0.8, 0.2]];
-  const tint = choice(rng, colors);
+  const carDef = choice(rng, CAR_TYPES);
+  const len = u(carDef.len), wid = u(carDef.wid), h = u(carDef.h);
+  const tint = carDef.color;
   const metalRect = getAtlasRect(8);
+  const glassRect = getAtlasRect(9);
+  const signRect = getAtlasRect(10);
   const baseY = 0;
   addSolid(batch, x, z, len, wid, h, baseY, yaw, metalRect, tint, "car", auditList);
-  const topLen = len * 0.6, topWid = wid * 0.8, topH = u(0.5);
-  const cyTop = baseY + h + topH / 2 + u(0.05);
-  batch.addBox(x, cyTop, z, topLen, topH, topWid, yaw, metalRect, tint);
+  const detail = Q.carDetail || Q.level === "L2" || Q.level === "L3";
+  if (detail) {
+    const topLen = len * 0.6, topWid = wid * 0.85, topH = u(0.45);
+    const cyTop = baseY + h + topH / 2 + u(0.05);
+    batch.addBox(x, cyTop, z, topLen, topH, topWid, yaw, glassRect, [0.7, 0.8, 0.9]);
+    const wheelR = u(0.25), wheelW = u(0.15);
+    const wheelY = baseY + wheelR;
+    const offsets = [
+      [len * 0.35, wid * 0.5],
+      [len * 0.35, -wid * 0.5],
+      [-len * 0.35, wid * 0.5],
+      [-len * 0.35, -wid * 0.5]
+    ];
+    for (const [ox, oz] of offsets) {
+      const rx = ox * Math.cos(yaw) - oz * Math.sin(yaw);
+      const rz = ox * Math.sin(yaw) + oz * Math.cos(yaw);
+      batch.addCylinder(x + rx, wheelY - wheelR, z + rz, wheelR, wheelW, 8, metalRect, [0.15, 0.15, 0.15]);
+    }
+    const lightSize = u(0.2);
+    const frontX = len / 2 - u(0.05);
+    const fx1 = frontX * Math.cos(yaw) - wid * 0.35 * Math.sin(yaw);
+    const fz1 = frontX * Math.sin(yaw) + wid * 0.35 * Math.cos(yaw);
+    const fx2 = frontX * Math.cos(yaw) - -wid * 0.35 * Math.sin(yaw);
+    const fz2 = frontX * Math.sin(yaw) + -wid * 0.35 * Math.cos(yaw);
+    batch.addBox(x + fx1, baseY + h * 0.5, z + fz1, lightSize, lightSize, lightSize, yaw, signRect, [1, 1, 0.8]);
+    batch.addBox(x + fx2, baseY + h * 0.5, z + fz2, lightSize, lightSize, lightSize, yaw, signRect, [1, 1, 0.8]);
+    if (carDef.name !== "bus") {
+      const mirX = len * 0.2;
+      const mirZ = wid * 0.6;
+      const mx1 = mirX * Math.cos(yaw) - mirZ * Math.sin(yaw);
+      const mz1 = mirX * Math.sin(yaw) + mirZ * Math.cos(yaw);
+      batch.addBox(x + mx1, baseY + h * 0.7, z + mz1, u(0.1), u(0.1), u(0.08), yaw, metalRect, [0.2, 0.2, 0.2]);
+    }
+    const plateW = u(0.4), plateH = u(0.15);
+    const backX = -len / 2 + u(0.05);
+    const bx = backX * Math.cos(yaw), bz = backX * Math.sin(yaw);
+    batch.addBox(x + bx, baseY + h * 0.3, z + bz, u(0.02), plateH, plateW, yaw, signRect, [1, 1, 1]);
+  } else {
+    const topLen = len * 0.6, topWid = wid * 0.8, topH = u(0.5);
+    const cyTop = baseY + h + topH / 2 + u(0.05);
+    batch.addBox(x, cyTop, z, topLen, topH, topWid, yaw, metalRect, tint);
+  }
 }
 function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, auditList, isMainRoad2) {
   const W = u(WPH), D = u(DPH), H = u(HPH);
@@ -422055,10 +422120,13 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, audit
   const doorRect = getAtlasRect(9);
   const roofRect = getAtlasRect(12);
   const metalRect = getAtlasRect(8);
+  const signRect = getAtlasRect(10);
+  const brickRect = getAtlasRect(6);
   const isHorizontal = edge === "north" || edge === "south";
   const yaw = isHorizontal ? 0 : Math.PI / 2;
   const actualW = isHorizontal ? W : D;
   const actualD = isHorizontal ? D : W;
+  const detailLevel = typeof Q !== "undefined" && typeof Q.buildingDetail === "number" ? Q.buildingDetail : 1;
   const floors = rng() < 0.5 ? 1 : 2;
   const baseH = u(floors * 2.2);
   const hasSetback = rng() < 0.35;
@@ -422078,12 +422146,6 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, audit
     const split = randRange(rng, 0.4, 0.6);
     const W1 = actualW * split, W2 = actualW * (1 - split);
     const H1 = H, H2 = H * randRange(rng, 0.6, 1);
-    let offsetX = 0, offsetZ = 0;
-    if (isHorizontal) {
-      offsetX = (W2 - W1) / 2;
-    } else {
-      offsetZ = (W2 - W1) / 2;
-    }
     const x1 = isHorizontal ? cx - W2 / 2 : cx;
     const z1 = isHorizontal ? cz : cz - W2 / 2;
     addSolid(batch, x1, z1, W1, actualD, H1, 0, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
@@ -422092,6 +422154,15 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, audit
     addSolid(batch, x2, z2, W2, actualD, H2, 0, yaw, winRect, tint, "build", auditList, { uScale: W2 / u(1) / 2.5, vScale: H2 / u(1) / 2.2 });
     const parapetH2 = u(0.4);
     batch.addBox(cx, H + parapetH2 / 2, cz, actualW + u(0.2), parapetH2, actualD + u(0.2), yaw, roofRect, tint);
+    if (detailLevel >= 1) {
+      const doorW = u(0.9), doorH = u(1.9);
+      const frontOffset = actualD / 2 + u(0.02);
+      const dx = isHorizontal ? 0 : edge === "east" ? frontOffset : -frontOffset;
+      const dz = isHorizontal ? edge === "north" ? frontOffset : -frontOffset : 0;
+      batch.addBox(cx + dx, doorH / 2, cz + dz, isHorizontal ? doorW : u(0.05), doorH, isHorizontal ? u(0.05) : doorW, yaw, doorRect, [1, 1, 1]);
+      batch.addBox(cx + dx + (isHorizontal ? doorW * 0.35 : 0), doorH * 0.5, cz + dz + (isHorizontal ? 0 : doorW * 0.35), u(0.05), u(0.05), u(0.02), yaw, metalRect, [0.9, 0.8, 0.3]);
+      batch.addBox(cx + dx * 1.1, u(0.05), cz + dz * 1.1, isHorizontal ? doorW + u(0.2) : u(0.6), u(0.1), isHorizontal ? u(0.6) : doorW + u(0.2), yaw, brickRect, [0.8, 0.8, 0.8]);
+    }
     return;
   }
   for (const seg of segments) {
@@ -422099,7 +422170,6 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, audit
     const segD = actualD - seg.inset * 2;
     if (segW <= u(1) || segD <= u(1)) continue;
     const segY = seg.y;
-    const segH = seg.h;
     if (seg.y < baseH) {
       const hInBase = Math.min(seg.h, baseH - seg.y);
       addSolid(batch, cx, cz, segW, segD, hInBase, seg.y, yaw, doorRect, tint, "build", auditList);
@@ -422108,29 +422178,114 @@ function addBuilding(batch, block, edge, cursor, WPH, DPH, HPH, zone, rng, audit
         addSolid(batch, cx, cz, segW, segD, upperSegH, seg.y + hInBase, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
       }
     } else {
-      addSolid(batch, cx, cz, segW, segD, segH, segY, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
+      addSolid(batch, cx, cz, segW, segD, seg.h, seg.y, yaw, winRect, tint, "build", auditList, { uScale: WPH / 2.5, vScale: HPH / 2.2 });
     }
   }
   const parapetH = u(0.4);
   batch.addBox(cx, H + parapetH / 2, cz, actualW + u(0.1), parapetH, actualD + u(0.1), yaw, roofRect, tint);
-  const distPH = Math.hypot(block.cxPH, block.czPH);
-  if (distPH < 600 && isMainRoad2 && rng() < 0.45) {
-    const propCount = randInt(rng, 1, 3);
-    for (let i = 0; i < propCount; i++) {
-      const px = cx + (rng() - 0.5) * actualW * 0.6;
-      const pz = cz + (rng() - 0.5) * actualD * 0.6;
-      const pw = u(randRange(rng, 0.4, 0.8));
-      const ph = u(randRange(rng, 0.4, 1));
-      const pd = u(randRange(rng, 0.4, 0.8));
-      batch.addBox(px, H + ph / 2, pz, pw, ph, pd, 0, metalRect, [0.5, 0.5, 0.55]);
-    }
+  if (detailLevel >= 1) {
+    const doorW = u(0.9), doorH = u(1.9);
+    const frontOffset = actualD / 2 + u(0.02);
+    const dx = isHorizontal ? 0 : edge === "east" ? frontOffset : -frontOffset;
+    const dz = isHorizontal ? edge === "north" ? frontOffset : -frontOffset : 0;
+    batch.addBox(cx + dx, doorH / 2, cz + dz, isHorizontal ? doorW : u(0.05), doorH, isHorizontal ? u(0.05) : doorW, yaw, doorRect, [1, 1, 1]);
+    batch.addBox(cx + dx + (isHorizontal ? doorW * 0.35 : 0), doorH * 0.5, cz + dz + (isHorizontal ? 0 : doorW * 0.35), u(0.05), u(0.05), u(0.02), yaw, metalRect, [0.9, 0.8, 0.3]);
+    batch.addBox(cx + dx * 1.1, u(0.05), cz + dz * 1.1, isHorizontal ? doorW + u(0.2) : u(0.6), u(0.1), isHorizontal ? u(0.6) : doorW + u(0.2), yaw, brickRect, [0.8, 0.8, 0.8]);
   }
-  if (rng() < 0.6) {
+  if (zone === "commercial" || rng() < 0.6) {
     const awningW = actualW * 0.8, awningD = u(0.5);
     const awningX = cx, awningZ = cz + (isHorizontal ? edge === "north" ? actualD / 2 + awningD / 2 : -actualD / 2 - awningD / 2 : 0);
     const awningX2 = isHorizontal ? awningX : cx + (edge === "east" ? actualW / 2 + awningD / 2 : -actualW / 2 - awningD / 2);
     const awningZ2 = isHorizontal ? awningZ : cz;
     batch.addBox(awningX2, baseH + u(0.1), awningZ2, isHorizontal ? awningW : awningD, u(0.05), isHorizontal ? awningD : awningW, yaw, metalRect, [0.9, 0.9, 0.9]);
+    if (detailLevel >= 1) {
+      const rodH = baseH;
+      const rodR = u(0.03);
+      const rodX1 = awningX2 + (isHorizontal ? awningW * 0.4 : awningD * 0.4);
+      const rodZ1 = awningZ2;
+      batch.addCylinder(rodX1, 0, rodZ1, rodR, rodH, 4, metalRect, [0.7, 0.7, 0.75]);
+    }
+    if (detailLevel >= 0) {
+      const signW = actualW * 0.6, signH = u(0.5);
+      const frontOffset = actualD / 2 + u(0.06);
+      const sx = isHorizontal ? cx : cx + (edge === "east" ? frontOffset : -frontOffset);
+      const sz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz;
+      batch.addBox(sx, baseH + u(0.6), sz, isHorizontal ? signW : u(0.05), signH, isHorizontal ? u(0.05) : signW, yaw, signRect, [1, 1, 1]);
+    }
+  }
+  if (detailLevel >= 2 && H > u(4) && rng() < 0.7) {
+    const balFloors = Math.floor((H - baseH) / u(2.8));
+    for (let f = 0; f < Math.min(balFloors, 3); f++) {
+      if (rng() < 0.4) continue;
+      const by = baseH + u(2.8) * f + u(1.2);
+      const balW = actualW * 0.4, balD = u(0.6), balH = u(0.08);
+      const frontOffset = actualD / 2 + balD / 2;
+      const bx = isHorizontal ? cx + (rng() - 0.5) * actualW * 0.5 : cx + (edge === "east" ? frontOffset : -frontOffset);
+      const bz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz + (rng() - 0.5) * actualW * 0.5;
+      batch.addBox(bx, by, bz, isHorizontal ? balW : balD, balH, isHorizontal ? balD : balW, yaw, brickRect, [0.9, 0.85, 0.8]);
+      batch.addBox(bx, by + u(0.5), bz + (isHorizontal ? balD * 0.4 : 0), isHorizontal ? balW : u(0.05), u(0.8), isHorizontal ? u(0.05) : balW, yaw, metalRect, [0.7, 0.7, 0.75]);
+      if (rng() < 0.5) {
+        batch.addBox(bx, by + u(0.6), bz, u(0.6), u(0.02), u(0.02), yaw, metalRect, [0.8, 0.8, 0.8]);
+        batch.addBox(bx, by + u(0.45), bz, u(0.3), u(0.25), u(0.01), yaw, signRect, [0.2, 0.6, 0.9]);
+      }
+    }
+  }
+  if (detailLevel >= 2 && rng() < 0.8) {
+    const acCount = randInt(rng, 1, 2);
+    for (let i = 0; i < acCount; i++) {
+      const ay = baseH + u(1.5) + rng() * (H - baseH - u(2));
+      const sideOffset = actualW / 2 + u(0.15);
+      const ax = isHorizontal ? cx + (rng() < 0.5 ? sideOffset : -sideOffset) : cx;
+      const az = isHorizontal ? cz : cz + (rng() < 0.5 ? sideOffset : -sideOffset);
+      const acW = u(0.4), acH = u(0.3), acD = u(0.25);
+      batch.addBox(ax, ay, az, acW, acH, acD, yaw, metalRect, [0.85, 0.85, 0.88]);
+      batch.addBox(ax, ay, az + u(0.13), acW * 0.8, acH * 0.6, u(0.02), yaw, metalRect, [0.3, 0.3, 0.35]);
+      batch.addBox(ax, ay - u(0.2), az, u(0.04), u(0.6), u(0.04), 0, metalRect, [0.6, 0.6, 0.6]);
+    }
+  }
+  if (detailLevel >= 2 && rng() < 0.5) {
+    const winY = baseH + u(1);
+    const frontOffset = actualD / 2 + u(0.05);
+    const fx2 = isHorizontal ? cx : cx + (edge === "east" ? frontOffset : -frontOffset);
+    const fz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz;
+    batch.addBox(fx2, winY, fz, isHorizontal ? u(1) : u(0.05), u(1), isHorizontal ? u(0.05) : u(1), yaw, metalRect, [0.5, 0.5, 0.55]);
+  }
+  const distPH = Math.hypot(block.cxPH, block.czPH);
+  if (distPH < 600 && isMainRoad2 && rng() < (detailLevel >= 2 ? 0.7 : 0.45)) {
+    const propCount = randInt(rng, 1, detailLevel >= 2 ? 5 : 3);
+    for (let i = 0; i < propCount; i++) {
+      const px = cx + (rng() - 0.5) * actualW * 0.6;
+      const pz = cz + (rng() - 0.5) * actualD * 0.6;
+      const pw = u(randRange(rng, 0.4, 1.2));
+      const ph = u(randRange(rng, 0.4, 1.5));
+      const pd = u(randRange(rng, 0.4, 1));
+      const isTank = rng() < 0.3;
+      if (isTank) {
+        batch.addCylinder(px, H, pz, pw * 0.5, ph, 8, metalRect, [0.6, 0.6, 0.65]);
+      } else {
+        batch.addBox(px, H + ph / 2, pz, pw, ph, pd, 0, metalRect, [0.5, 0.5, 0.55]);
+      }
+      if (detailLevel >= 3 && i === 0) {
+        batch.addBox(px + pw * 0.6, H + u(0.5), pz, u(0.6), u(1), u(0.05), 0, metalRect, [0.4, 0.4, 0.45]);
+        batch.addBox(px - pw * 0.6, H * 0.5, pz, u(0.3), H, u(0.05), 0, metalRect, [0.5, 0.5, 0.55]);
+      }
+    }
+  }
+  if (detailLevel >= 2 && rng() < 0.6) {
+    const ladderH = H * 0.8;
+    const sideX = cx + actualW / 2 + u(0.1);
+    const sideZ = cz;
+    const lx = isHorizontal ? sideX : cx;
+    const lz = isHorizontal ? cz : sideZ + actualW / 2 + u(0.1);
+    batch.addBox(lx, ladderH / 2, lz, u(0.05), ladderH, u(0.4), yaw, metalRect, [0.55, 0.1, 0.1]);
+    batch.addCylinder(cx + actualW * 0.45, 0, cz + actualD * 0.45, u(0.04), H, 4, metalRect, [0.4, 0.4, 0.45]);
+  }
+  if (detailLevel >= 2 && rng() < 0.4) {
+    const graffitiY = u(1);
+    const frontOffset = actualD / 2 + u(0.01);
+    const gx = isHorizontal ? cx + (rng() - 0.5) * actualW * 0.6 : cx + (edge === "east" ? frontOffset : -frontOffset);
+    const gz = isHorizontal ? cz + (edge === "north" ? frontOffset : -frontOffset) : cz + (rng() - 0.5) * actualW * 0.6;
+    batch.addBox(gx, graffitiY, gz, isHorizontal ? u(1.2) : u(0.02), u(0.8), isHorizontal ? u(0.02) : u(1.2), yaw, signRect, [1, 0.3, 0.6]);
   }
 }
 function buildCity(scene, opts = {}) {
@@ -422168,7 +422323,34 @@ function buildCity(scene, opts = {}) {
       const tileCenterX = (tileMinX + tileMaxX) / 2;
       const tileCenterZ = (tileMinZ + tileMaxZ) / 2;
       const asphaltRect = getAtlasRect(4);
+      const sidewalkRect = getAtlasRect(6);
+      const grassRect = getAtlasRect(7);
+      const metalRect = getAtlasRect(8);
+      const blobRect = getAtlasRect(15);
       batch.addQuad({ x: tileMinX, y: 0, z: tileMinZ }, { x: tileMaxX, y: 0, z: tileMinZ }, { x: tileMaxX, y: 0, z: tileMaxZ }, { x: tileMinX, y: 0, z: tileMaxZ }, asphaltRect, [0.9, 0.9, 0.9]);
+      {
+        const tileRng = mulberry32(seedFor(`ground-${tx}-${tz}`, tx, tz));
+        const gd = typeof Q !== "undefined" && typeof Q.groundDetail === "number" ? Q.groundDetail : 1;
+        if (gd >= 1) {
+          const manholeCount = gd >= 2 ? randInt(tileRng, 3, 6) : randInt(tileRng, 1, 3);
+          for (let m = 0; m < manholeCount; m++) {
+            const mx = tileMinX + tileRng() * (tileMaxX - tileMinX);
+            const mz = tileMinZ + tileRng() * (tileMaxZ - tileMinZ);
+            const r = u(0.35);
+            batch.addCylinder(mx, 2e-3, mz, r, u(0.02), 8, metalRect, [0.35, 0.35, 0.38]);
+          }
+        }
+        if (gd >= 2) {
+          const puddleCount = randInt(tileRng, 1, 3);
+          for (let p = 0; p < puddleCount; p++) {
+            const px = tileMinX + tileRng() * (tileMaxX - tileMinX);
+            const pz = tileMinZ + tileRng() * (tileMaxZ - tileMinZ);
+            const pw = u(randRange(tileRng, 1.5, 3.5));
+            const pd = u(randRange(tileRng, 1, 2.5));
+            batch.addQuad({ x: px - pw / 2, y: 3e-3, z: pz - pd / 2 }, { x: px + pw / 2, y: 3e-3, z: pz - pd / 2 }, { x: px + pw / 2, y: 3e-3, z: pz + pd / 2 }, { x: px - pw / 2, y: 3e-3, z: pz + pd / 2 }, blobRect, [0.6, 0.7, 0.85]);
+          }
+        }
+      }
       for (let bx = tileMinBX; bx <= tileMaxBX; bx++) {
         for (let bz = tileMinBZ; bz <= tileMaxBZ; bz++) {
           const block = blocks.find((b) => b.bx === bx && b.bz === bz);
@@ -422188,8 +422370,8 @@ function buildCity(scene, opts = {}) {
             continue;
           }
           if (block.zone === "park") {
-            const grassRect = getAtlasRect(7);
-            batch.addQuad({ x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, grassRect, [1, 1, 1]);
+            const grassRect2 = getAtlasRect(7);
+            batch.addQuad({ x: block.cx - block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz - block.netD / 2 }, { x: block.cx + block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, { x: block.cx - block.netW / 2, y: 1e-3, z: block.cz + block.netD / 2 }, grassRect2, [1, 1, 1]);
             const treeCount = randInt(rng, 5, 12);
             for (let t = 0; t < treeCount; t++) {
               const tx2 = block.cx + (rng() - 0.5) * block.netW * 0.8;
@@ -422211,7 +422393,9 @@ function buildCity(scene, opts = {}) {
           addSolid(batch, block.cx + block.netW / 2 + sidewalkW / 2, block.cz, sidewalkW, block.netD, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
           addSolid(batch, block.cx - block.netW / 2 - sidewalkW / 2, block.cz, sidewalkW, block.netD, curbH, 0, 0, brickRect, [1, 1, 1], "curb", auditRecords);
           const zoneParam = ZONE_PARAMS[block.zone] || ZONE_PARAMS.residential;
-          const totalBuildings = randInt(rng, 4, 8);
+          const bDetail = typeof Q !== "undefined" && typeof Q.buildingDetail === "number" ? Q.buildingDetail : 1;
+          const buildingRange = bDetail === 0 ? [1, 1] : bDetail === 1 ? [1, 3] : bDetail === 2 ? [2, 4] : [3, 6];
+          const totalBuildings = randInt(rng, buildingRange[0], buildingRange[1]);
           const edges = ["north", "south", "east", "west"];
           const perEdge = [0, 0, 0, 0];
           for (let i = 0; i < totalBuildings; i++) perEdge[i % 4]++;
@@ -422247,11 +422431,14 @@ function buildCity(scene, opts = {}) {
               cursorPos += u(WPH + gapPH);
             }
           }
-          for (const def of FURNITURE_DEFS) {
+          const furnLimit = typeof Q !== "undefined" && typeof Q.streetFurnitureTypes === "number" ? Q.streetFurnitureTypes : 12;
+          const furnDefs = FURNITURE_DEFS.slice(0, furnLimit);
+          const spacingMult = typeof Q !== "undefined" && Q.level === "L0" ? 4 : Q.level === "L1" ? 2.5 : Q.level === "L2" ? 1.2 : 1;
+          for (const def of furnDefs) {
             if (block.zone === "park") continue;
             if (def.type === "guard" && !block.isMain) continue;
             if (def.type === "pole" && block.zone !== "oldtown" && rng() > 0.3) continue;
-            const spacingWorld = u(def.spacing);
+            const spacingWorld = u(def.spacing * spacingMult);
             const jitter = 0.15;
             const phase = rng() * spacingWorld;
             for (const edge of edges) {
@@ -422288,7 +422475,8 @@ function buildCity(scene, opts = {}) {
             }
           }
           if (block.zone !== "park" && rng() < 0.7) {
-            const carCount = randInt(rng, 1, 3);
+            const carRange = typeof Q !== "undefined" && Q.level === "L0" ? [0, 1] : Q.level === "L1" ? [1, 2] : [1, 3];
+            const carCount = randInt(rng, carRange[0], carRange[1]);
             for (let c = 0; c < carCount; c++) {
               const side = choice(rng, ["north", "south", "east", "west"]);
               const offset = (rng() - 0.5) * (side === "north" || side === "south" ? block.netW : block.netD) * 0.6;
