@@ -420774,6 +420774,40 @@ function clearWorld() {
 function getBoxes() {
   return boxes;
 }
+function removeBoxesInRadius(x, z, radius, kinds = null) {
+  const r2 = radius * radius;
+  let removed = 0;
+  for (let i = boxes.length - 1; i >= 0; i--) {
+    const b = boxes[i];
+    if (kinds && !kinds.includes(b.kind)) continue;
+    if (b.kind === "ground" || b.kind === "wall") continue;
+    const cx = (b.minX + b.maxX) / 2;
+    const cz = (b.minZ + b.maxZ) / 2;
+    const dx = cx - x, dz = cz - z;
+    if (dx * dx + dz * dz <= r2) {
+      boxes.splice(i, 1);
+      removed++;
+    }
+  }
+  if (removed > 0) {
+    grid.clear();
+    for (let idx = 0; idx < boxes.length; idx++) {
+      const b = boxes[idx];
+      const minIX = Math.floor(b.minX / CELL);
+      const maxIX = Math.floor(b.maxX / CELL);
+      const minIZ = Math.floor(b.minZ / CELL);
+      const maxIZ = Math.floor(b.maxZ / CELL);
+      for (let ix = minIX; ix <= maxIX; ix++) {
+        for (let iz = minIZ; iz <= maxIZ; iz++) {
+          const k = keyFor(ix, iz);
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push(idx);
+        }
+      }
+    }
+  }
+  return removed;
+}
 function overlap(a, b) {
   return a.minX < b.maxX && a.maxX > b.minX && a.minY < b.maxY && a.maxY > b.minY && a.minZ < b.maxZ && a.maxZ > b.minZ;
 }
@@ -420836,30 +420870,6 @@ function insideAnyBox(pos, radius = WORLD.RADIUS) {
   for (const b of nearby) {
     if (b.kind === "ground") continue;
     if (overlap(testBox, b)) return true;
-  }
-  return false;
-}
-function lineOfSightBlocked(from, to, stepPH = 2) {
-  const step = u(stepPH);
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const dz = to.z - from.z;
-  const len = Math.hypot(dx, dy, dz);
-  if (len < 1e-6) return false;
-  const steps = Math.max(1, Math.ceil(len / step));
-  for (let i = 1; i < steps; i++) {
-    const t = i / steps;
-    const sx = from.x + dx * t;
-    const sy = from.y + dy * t;
-    const sz = from.z + dz * t;
-    const nearby = query(sx, sz, 0);
-    for (const b of nearby) {
-      if (b.kind === "ground") continue;
-      if (b.kind === "curb") continue;
-      if (sx >= b.minX && sx <= b.maxX && sy >= b.minY && sy <= b.maxY && sz >= b.minZ && sz <= b.maxZ) {
-        return true;
-      }
-    }
   }
   return false;
 }
@@ -423069,6 +423079,9 @@ function createPlayer(scene, opts = {}) {
 // src/game/giant.js
 var BONE_NAMES = {
   head: ["\u982D", "\u9996"],
+  neck: ["\u9996"],
+  upper: ["\u4E0A\u534A\u8EAB", "\u4E0A\u534A\u8EAB2", "\u4E0A\u534A\u8EAB1"],
+  lower: ["\u4E0B\u534A\u8EAB"],
   footL: ["\u5DE6\u8DB3\u9996", "\u5DE6\u8DB3"],
   footR: ["\u53F3\u8DB3\u9996", "\u53F3\u8DB3"],
   toeL: ["\u5DE6\u3064\u307E\u5148"],
@@ -423076,8 +423089,10 @@ var BONE_NAMES = {
   ikL: ["\u5DE6\u8DB3\uFF29\uFF2B"],
   ikR: ["\u53F3\u8DB3\uFF29\uFF2B"],
   center: ["\u30BB\u30F3\u30BF\u30FC"],
-  upper: ["\u4E0A\u534A\u8EAB", "\u4E0A\u534A\u8EAB2"],
-  lower: ["\u4E0B\u534A\u8EAB"],
+  armL: ["\u5DE6\u8155"],
+  armR: ["\u53F3\u8155"],
+  shoulderL: ["\u5DE6\u80A9"],
+  shoulderR: ["\u53F3\u80A9"],
   eyeL: ["\u5DE6\u76EE"],
   eyeR: ["\u53F3\u76EE"],
   eyeBoth: ["\u4E21\u76EE"]
@@ -423100,33 +423115,34 @@ function getBoneWorldPos(bone) {
     return null;
   }
 }
+function degToRad(d) {
+  return d * Math.PI / 180;
+}
 function createGiant(mmd, opts = {}) {
   const root = mmd.mesh || mmd.root || null;
   const skeleton = mmd.skeleton || mmd.mmdModel && mmd.mmdModel.skeleton || null;
-  if (skeleton && skeleton.bones) {
-    try {
-      console.table(skeleton.bones.map((b) => b.name));
-    } catch (e) {
-    }
-  }
+  const mmdModel = mmd.mmdModel || null;
   const bones = {
     head: findBone(skeleton, BONE_NAMES.head),
+    neck: findBone(skeleton, ["\u9996"]),
+    upper: findBone(skeleton, BONE_NAMES.upper),
+    lower: findBone(skeleton, BONE_NAMES.lower),
     footL: findBone(skeleton, BONE_NAMES.footL),
     footR: findBone(skeleton, BONE_NAMES.footR),
-    toeL: findBone(skeleton, BONE_NAMES.toeL),
-    toeR: findBone(skeleton, BONE_NAMES.toeR),
     ikL: findBone(skeleton, BONE_NAMES.ikL),
     ikR: findBone(skeleton, BONE_NAMES.ikR),
     center: findBone(skeleton, BONE_NAMES.center),
-    upper: findBone(skeleton, BONE_NAMES.upper),
-    lower: findBone(skeleton, BONE_NAMES.lower),
+    armL: findBone(skeleton, BONE_NAMES.armL),
+    armR: findBone(skeleton, BONE_NAMES.armR),
+    shoulderL: findBone(skeleton, BONE_NAMES.shoulderL),
+    shoulderR: findBone(skeleton, BONE_NAMES.shoulderR),
     eyeL: findBone(skeleton, BONE_NAMES.eyeL),
     eyeR: findBone(skeleton, BONE_NAMES.eyeR),
     eyeBoth: findBone(skeleton, BONE_NAMES.eyeBoth)
   };
   const missing = Object.entries(bones).filter(([k, v]) => !v).map(([k]) => k);
-  if (missing.length) console.warn(`[giant] \u7F3A\u5C11\u9AA8\u9ABC: ${missing.join(",")}\uFF0C\u5C06\u964D\u7EA7`);
-  let state = "idle";
+  if (missing.length) console.warn(`[giant] \u7F3A\u5C11\u9AA8\u9ABC: ${missing.join(",")}\uFF0C\u964D\u7EA7`);
+  let state = "approach";
   let stateTime = 0;
   let targetPos = null;
   let prevFootL = null, prevFootR = null;
@@ -423136,15 +423152,84 @@ function createGiant(mmd, opts = {}) {
   const footYHistory = [];
   const ROLL_WINDOW = 2.5;
   let currentMotion = "idle";
-  let isSeeingPlayer = false;
+  const knowsPlayer = true;
+  let isSeeingPlayer = true;
+  let targetHeadPitch = 0, targetNeckPitch = 0, targetUpperPitch = 0;
+  let curHeadPitch = 0, curNeckPitch = 0, curUpperPitch = 0;
+  const SMOOTH_TAU = 0.25;
+  let eyeYaw = 0, eyePitch = 0;
+  let targetEyeYaw = 0, targetEyePitch = 0;
+  let blinkTimer = 0;
+  let nextBlink = 3 + Math.random() * 2;
+  let isBlinking = false;
+  let blinkPhase = 0;
+  let gazeState = "player";
+  let gazeTimer = 0;
+  let gazeDuration = 1.5;
+  let lastGazeSwitch = 0;
+  let morphTimer = 0;
+  const morphNames = {
+    blink: ["\u307E\u3070\u305F\u304D", "blink", "Blink"],
+    smile: ["\u306B\u3053\u308A", "\u7B11\u3044", "smile"],
+    angry: ["\u6012\u308A", "angry", "\u53E3\u89D2\u4E0B\u3052"],
+    troubled: ["\u56F0\u308B", "troubled"]
+  };
+  function findMorph(nameList) {
+    if (!mmdModel) return null;
+    try {
+      const morphs = mmdModel.morph?.morphs || mmdModel._morph?.morphs || [];
+      for (const n of nameList) {
+        const m = morphs.find((mm) => mm.name === n || mm.morphName === n);
+        if (m) return m;
+      }
+    } catch (e) {
+    }
+    return null;
+  }
+  function setMorphWeight(nameList, weight) {
+    try {
+      const morph = findMorph(nameList);
+      if (morph && typeof morph.weight === "number") morph.weight = weight;
+      else if (mmdModel && mmdModel.setMorphWeight) {
+        for (const n of nameList) {
+          try {
+            mmdModel.setMorphWeight(n, weight);
+            break;
+          } catch (e) {
+          }
+        }
+      }
+    } catch (e) {
+    }
+  }
   function feetWorld() {
     const fl = getBoneWorldPos(bones.footL) || getBoneWorldPos(bones.ikL);
     const fr = getBoneWorldPos(bones.footR) || getBoneWorldPos(bones.ikR);
     return { left: fl, right: fr };
   }
+  function calcLookDown(distPH) {
+    if (distPH > 800) return { neck: 0, head: 0, upper: 0 };
+    if (distPH > 400) return { neck: 3, head: 5, upper: 1 };
+    if (distPH > 200) return { neck: 8, head: 14, upper: 3 };
+    return { neck: 12, head: 22, upper: 6 };
+  }
+  function pickNextGaze(stateName, rng) {
+    const r = rng();
+    if (stateName === "stompNear") return "player";
+    if (stateName === "stomp") return "feet";
+    if (stateName === "recover") return r < 0.5 ? "side" : "player";
+    if (stateName === "idle") return r < 0.3 ? "player" : "side";
+    if (r < 0.45) return "player";
+    if (r < 0.65) return "forward";
+    if (r < 0.85) return "side";
+    return "feet";
+  }
   function update(dt, playerPos, collide) {
     dt = Math.min(0.05, dt);
     stateTime += dt;
+    gazeTimer += dt;
+    blinkTimer += dt;
+    morphTimer += dt;
     const feet = feetWorld();
     const fl = feet.left, fr = feet.right;
     if (fl && fr && root) {
@@ -423181,86 +423266,187 @@ function createGiant(mmd, opts = {}) {
       prevFootR = fr ? { ...fr } : null;
     }
     if (playerPos) {
-      const eyePos = getBoneWorldPos(bones.head) || rootPos;
-      const toPlayer = { x: playerPos.x - rootPos.x, y: playerPos.y - (eyePos ? eyePos.y : 10), z: playerPos.z - rootPos.z };
+      targetPos = { ...playerPos };
+      const toPlayer = { x: playerPos.x - rootPos.x, z: playerPos.z - rootPos.z };
       const distPH = Math.hypot(toPlayer.x, toPlayer.z) / u(1);
-      const forward = { x: Math.sin(root.rotation ? root.rotation.y : 0), z: Math.cos(root.rotation ? root.rotation.y : 0) };
-      const dot = (toPlayer.x * forward.x + toPlayer.z * forward.z) / (Math.hypot(toPlayer.x, toPlayer.z) * Math.hypot(forward.x, forward.z) + 1e-6);
-      const angle = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
-      const effectiveRange = CFG.SENSE_RANGE;
-      let blocked = false;
-      if (collide && eyePos && collide.lineOfSightBlocked) {
-        try {
-          blocked = collide.lineOfSightBlocked(eyePos, playerPos, 2);
-        } catch (e) {
-        }
-      }
-      const canSee = distPH < effectiveRange && angle < CFG.SENSE_ANGLE && !blocked;
-      isSeeingPlayer = canSee;
-      if (canSee) targetPos = { ...playerPos };
+      const distWorld = Math.hypot(toPlayer.x, toPlayer.z);
       switch (state) {
-        case "idle":
-          if (canSee) {
-            state = "approach";
+        case "approach":
+          if (distPH < 200) {
+            state = "stompNear";
             stateTime = 0;
-            setMotion("walk");
+            setMorphWeight(morphNames.angry, 0.5);
+            gazeState = "player";
+            gazeTimer = 0;
+            gazeDuration = 0.8;
           }
           break;
-        case "approach":
-          if (distPH < 300) {
+        case "stompNear":
+          if (stateTime >= 0.8) {
             state = "stomp";
             stateTime = 0;
             setMotion("stomp");
-          } else if (stateTime > 3 && !canSee) {
-            state = "scan";
-            stateTime = 0;
-            setMotion("idle");
+            setMorphWeight(morphNames.smile, 0.6);
           }
           break;
         case "stomp":
-          if (stateTime > 3) {
+          if (stateTime > 2.5) {
             state = "recover";
             stateTime = 0;
             setMotion("walk");
+            setMorphWeight(morphNames.troubled, 0.3);
           }
           break;
         case "recover":
           if (stateTime > 0.6) {
-            if (blocked) {
-              state = "scan";
-              stateTime = 0;
-              setMotion("idle");
-            } else {
-              state = "approach";
-              stateTime = 0;
-              setMotion("walk");
-            }
-          }
-          break;
-        case "scan":
-          if (canSee) {
             state = "approach";
             stateTime = 0;
             setMotion("walk");
-          } else if (stateTime > 3) {
-            state = "idle";
-            stateTime = 0;
-            setMotion("idle");
+            setMorphWeight(morphNames.smile, 0.35);
+            setTimeout(() => setMorphWeight(morphNames.smile, 0), 600);
           }
           break;
+        default:
+          state = "approach";
+          stateTime = 0;
+          setMotion("walk");
       }
-      if (state === "approach" || state === "stomp") {
+      if (state === "approach" || state === "stompNear" || state === "stomp") {
         const desiredYaw = Math.atan2(toPlayer.x, toPlayer.z);
         let currentYaw = root.rotation ? root.rotation.y : 0;
         let diff = desiredYaw - currentYaw;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        const maxTurn = degToRad(CFG.TURN_RATE) * dt;
+        const maxTurn = degToRad(20) * dt;
         diff = Math.max(-maxTurn, Math.min(maxTurn, diff));
         if (root.rotation) root.rotation.y += diff;
       }
+      const lookDown = calcLookDown(distPH);
+      targetNeckPitch = degToRad(lookDown.neck);
+      targetHeadPitch = degToRad(lookDown.head);
+      targetUpperPitch = degToRad(lookDown.upper);
+      if (gazeTimer >= gazeDuration && stateTime - lastGazeSwitch >= 1.2) {
+        const rng = () => Math.random();
+        const next = pickNextGaze(state, rng);
+        gazeState = next;
+        gazeTimer = 0;
+        gazeDuration = 1 + Math.random() * 1.5;
+        lastGazeSwitch = stateTime;
+      }
+      let eyeTargetX = 0, eyeTargetZ = 0, eyeTargetY = 0;
+      if (gazeState === "player") {
+        eyeTargetX = toPlayer.x;
+        eyeTargetZ = toPlayer.z;
+        eyeTargetY = playerPos.y - (getBoneWorldPos(bones.head)?.y || 10);
+      } else if (gazeState === "forward") {
+        eyeTargetX = Math.sin(root.rotation ? root.rotation.y : 0) * 10;
+        eyeTargetZ = Math.cos(root.rotation ? root.rotation.y : 0) * 10;
+      } else if (gazeState === "side") {
+        const sideAng = (Math.random() - 0.5) * Math.PI * 0.6;
+        const fwdYaw = root.rotation ? root.rotation.y : 0;
+        eyeTargetX = Math.sin(fwdYaw + sideAng) * 10;
+        eyeTargetZ = Math.cos(fwdYaw + sideAng) * 10;
+      } else if (gazeState === "feet") {
+        eyeTargetX = toPlayer.x * 0.2;
+        eyeTargetZ = toPlayer.z * 0.2;
+        eyeTargetY = -5;
+      }
+      if (distWorld > 0.01) {
+        const yawToTarget = Math.atan2(eyeTargetX, eyeTargetZ) - (root.rotation ? root.rotation.y : 0);
+        let normYaw = yawToTarget;
+        while (normYaw > Math.PI) normYaw -= Math.PI * 2;
+        while (normYaw < -Math.PI) normYaw += Math.PI * 2;
+        targetEyeYaw = Math.max(degToRad(-15), Math.min(degToRad(15), normYaw));
+        targetEyePitch = Math.max(degToRad(-10), Math.min(degToRad(10), Math.atan2(eyeTargetY, distWorld)));
+      }
     }
-    return { state, stateTime, rootPos: { ...rootPos }, feet: feetWorld(), isSeeingPlayer, targetPos };
+    const alpha = 1 - Math.exp(-dt / SMOOTH_TAU);
+    curNeckPitch += (targetNeckPitch - curNeckPitch) * alpha;
+    curHeadPitch += (targetHeadPitch - curHeadPitch) * alpha;
+    curUpperPitch += (targetUpperPitch - curUpperPitch) * alpha;
+    const eyeAlpha = 1 - Math.exp(-dt / 0.15);
+    const headAlpha = 1 - Math.exp(-dt / 0.4);
+    eyeYaw += (targetEyeYaw - eyeYaw) * eyeAlpha;
+    eyePitch += (targetEyePitch - eyePitch) * eyeAlpha;
+    try {
+      const BABYLON3 = window.BABYLON;
+      if (BABYLON3) {
+        if (bones.head) {
+          if (bones.head.rotation) {
+            bones.head.rotation.x += curHeadPitch - (bones.head._lastAddedPitch || 0);
+            bones.head._lastAddedPitch = curHeadPitch;
+          } else if (bones.head.rotationQuaternion) {
+            const q = BABYLON3.Quaternion.RotationYawPitchRoll(0, curHeadPitch - (bones.head._lastAddedPitch || 0), 0);
+            bones.head.rotationQuaternion = bones.head.rotationQuaternion.multiply(q);
+            bones.head._lastAddedPitch = curHeadPitch;
+          }
+        }
+        if (bones.neck) {
+          if (bones.neck.rotation) {
+            bones.neck.rotation.x += curNeckPitch - (bones.neck._lastAddedPitch || 0);
+            bones.neck._lastAddedPitch = curNeckPitch;
+          }
+        }
+        if (bones.upper) {
+          if (bones.upper.rotation) {
+            bones.upper.rotation.x += curUpperPitch - (bones.upper._lastAddedPitch || 0);
+            bones.upper._lastAddedPitch = curUpperPitch;
+          }
+        }
+        if (bones.eyeL) {
+          if (bones.eyeL.rotation) {
+            bones.eyeL.rotation.y = eyeYaw;
+            bones.eyeL.rotation.x = eyePitch;
+          }
+        }
+        if (bones.eyeR) {
+          if (bones.eyeR.rotation) {
+            bones.eyeR.rotation.y = eyeYaw;
+            bones.eyeR.rotation.x = eyePitch;
+          }
+        }
+        if (bones.eyeBoth && !bones.eyeL) {
+          if (bones.eyeBoth.rotation) {
+            bones.eyeBoth.rotation.y = eyeYaw;
+            bones.eyeBoth.rotation.x = eyePitch;
+          }
+        }
+      }
+    } catch (e) {
+    }
+    if (blinkTimer >= nextBlink) {
+      isBlinking = true;
+      blinkPhase = 0;
+      blinkTimer = 0;
+      nextBlink = 3 + Math.random() * 2;
+    }
+    if (isBlinking) {
+      blinkPhase += dt / 0.1;
+      if (blinkPhase >= 1) {
+        isBlinking = false;
+        blinkPhase = 0;
+        setMorphWeight(morphNames.blink, 0);
+      } else {
+        const w = blinkPhase < 0.5 ? blinkPhase * 2 : (1 - blinkPhase) * 2;
+        setMorphWeight(morphNames.blink, w);
+      }
+    }
+    if (state === "stompNear" && stateTime > 0.8) {
+      setMorphWeight(morphNames.angry, 0);
+    }
+    return {
+      state,
+      stateTime,
+      rootPos: { ...rootPos },
+      feet: feetWorld(),
+      isSeeingPlayer,
+      knowsPlayer,
+      targetPos,
+      gazeState,
+      headPitchDeg: curHeadPitch * 180 / Math.PI,
+      eyeYawDeg: eyeYaw * 180 / Math.PI,
+      eyePitchDeg: eyePitch * 180 / Math.PI
+    };
   }
   function setMotion(slot) {
     currentMotion = slot;
@@ -423271,9 +423457,6 @@ function createGiant(mmd, opts = {}) {
   }
   function getRoot() {
     return root;
-  }
-  function degToRad(d) {
-    return d * Math.PI / 180;
   }
   return {
     update,
@@ -423400,12 +423583,16 @@ function createStompSystem(giant2, city, fx2, opts = {}) {
   const FOOT_A = WORLD.FOOT_A;
   const FOOT_B = WORLD.FOOT_B;
   const LAND_Y = CFG.LAND_Y;
-  const LAND_V = CFG.LAND_V;
   const STOMP_CD = CFG.STOMP_CD;
   let lastFootL = null, lastFootR = null;
   let cooldownL = 0, cooldownR = 0;
   let onImpactCallback = null;
   const crushedBlocks = /* @__PURE__ */ new Set();
+  let predictTimer = 0;
+  let stuckTimer = 0;
+  let lastRootPos = null;
+  let stuckHistory = [];
+  let preCleared = /* @__PURE__ */ new Set();
   function worldToFoot(localYaw, footCenter, playerPos) {
     const dx = playerPos.x - footCenter.x;
     const dz = playerPos.z - footCenter.z;
@@ -423414,10 +423601,82 @@ function createStompSystem(giant2, city, fx2, opts = {}) {
     const localZ = dx * sin + dz * cos;
     return { u: localX, v: localZ };
   }
+  function triggerDestruction(footPos, city2, fx3) {
+    if (!city2 || !city2.blocks) return;
+    const bx = Math.floor(footPos.x / WORLD.BLOCK_PITCH + CFG.CITY_GRID / 2);
+    const bz = Math.floor(footPos.z / WORLD.BLOCK_PITCH + CFG.CITY_GRID / 2);
+    const key = `${bx}_${bz}`;
+    if (crushedBlocks.has(key)) return;
+    const blocksToCrush = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dz = -1; dz <= 1; dz++) {
+        const nbx = bx + dx, nbz = bz + dz;
+        if (nbx < 0 || nbx >= CFG.CITY_GRID || nbz < 0 || nbz >= CFG.CITY_GRID) continue;
+        const dist = Math.hypot(dx, dz);
+        const delay = dist * 100 + Math.random() * 100;
+        blocksToCrush.push({ bx: nbx, bz: nbz, delay });
+      }
+    }
+    blocksToCrush.sort((a, b) => a.delay - b.delay);
+    for (const b of blocksToCrush) {
+      const k = `${b.bx}_${b.bz}`;
+      if (crushedBlocks.has(k)) continue;
+      crushedBlocks.add(k);
+      setTimeout(() => {
+        if (fx3) fx3.crushBlock(b.bx, b.bz);
+      }, b.delay);
+    }
+    if (fx3) fx3.onDestruction(footPos, blocksToCrush);
+  }
+  function preClearAt(x, z, radius = u(3)) {
+    const removed = removeBoxesInRadius(x, z, radius, ["build", "furn", "car"]);
+    if (removed > 0) {
+      if (fx2 && fx2.spawnDust) {
+        try {
+          fx2.spawnDust({ x, z }, radius);
+        } catch (e) {
+        }
+      }
+      const bx = Math.floor(x / WORLD.BLOCK_PITCH + CFG.CITY_GRID / 2);
+      const bz = Math.floor(z / WORLD.BLOCK_PITCH + CFG.CITY_GRID / 2);
+      const key = `${bx}_${bz}`;
+      if (!preCleared.has(key)) {
+        preCleared.add(key);
+        crushedBlocks.add(key);
+        if (fx2) {
+          setTimeout(() => {
+            try {
+              fx2.crushBlock(bx, bz);
+            } catch (e) {
+            }
+          }, 0);
+        }
+      }
+    }
+    return removed;
+  }
+  function predictFootWindows() {
+    if (!giant2 || !giant2.rootPos) return [];
+    const root = giant2.getRoot ? giant2.getRoot() : null;
+    const yaw = root && root.rotation ? root.rotation.y : 0;
+    const dirX = Math.sin(yaw), dirZ = Math.cos(yaw);
+    const stepLen = 8.8 * u(1);
+    const footW = 1.2 * u(1);
+    const windows = [];
+    let baseX = giant2.rootPos.x, baseZ = giant2.rootPos.z;
+    for (let i = 1; i <= 3; i++) {
+      const fx3 = baseX + dirX * stepLen * i;
+      const fz = baseZ + dirZ * stepLen * i;
+      windows.push({ x: fx3, z: fz, r: footW * 2 });
+    }
+    return windows;
+  }
   function update(dt, playerPos, playerState) {
     dt = Math.min(0.05, dt);
     if (cooldownL > 0) cooldownL -= dt;
     if (cooldownR > 0) cooldownR -= dt;
+    predictTimer += dt;
+    stuckTimer += dt;
     const feet = giant2.feet ? giant2.feet() : null;
     if (!feet) return null;
     const fl = feet.left, fr = feet.right;
@@ -423425,12 +423684,47 @@ function createStompSystem(giant2, city, fx2, opts = {}) {
     const root = giant2.getRoot ? giant2.getRoot() : null;
     const yaw = root && root.rotation ? root.rotation.y : 0;
     let result = null;
+    if (predictTimer >= 0.5) {
+      predictTimer = 0;
+      const windows = predictFootWindows();
+      for (const w of windows) {
+        preClearAt(w.x, w.z, w.r);
+      }
+    }
+    if (root && root.position) {
+      const now = performance.now() / 1e3;
+      const rp = { t: now, x: root.position.x, z: root.position.z };
+      stuckHistory.push(rp);
+      while (stuckHistory.length && now - stuckHistory[0].t > 1.5) stuckHistory.shift();
+      if (stuckHistory.length >= 2) {
+        const first = stuckHistory[0], last = stuckHistory[stuckHistory.length - 1];
+        const disp = Math.hypot(last.x - first.x, last.z - first.z);
+        const isStomping = giant2.state === "stomp" || giant2.state === "stompNear";
+        if (disp < 0.3 && !isStomping) {
+          const fwdX = Math.sin(yaw), fwdZ = Math.cos(yaw);
+          const clearX = root.position.x + fwdX * u(1.5);
+          const clearZ = root.position.z + fwdZ * u(1.5);
+          const removed = preClearAt(clearX, clearZ, u(1.5));
+          if (removed > 0) {
+            console.log(`[stomp] \u81EA\u6551\u89E6\u53D1\uFF0C\u6E05\u524D\u65B9 ${removed} \u4E2A AABB`);
+            stuckHistory.length = 0;
+            if (giant2.setMotion) {
+              try {
+                giant2.setMotion("walk");
+              } catch (e) {
+              }
+            }
+          }
+        }
+      }
+      lastRootPos = { x: root.position.x, z: root.position.z };
+    }
     if (lastFootL && cooldownL <= 0) {
       const prevY = lastFootL.y, nowY = fl.y;
       const dv = prevY - nowY;
       const isLanding = prevY > LAND_Y && nowY <= LAND_Y && dv > 0.01;
       const vel = dv / dt;
-      if (isLanding && vel > LAND_V * 0.1) {
+      if (isLanding && vel > 2 * 0.1) {
         const local = worldToFoot(yaw, { x: fl.x, z: fl.z }, playerPos);
         const d = Math.hypot(local.u / FOOT_A, local.v / FOOT_B);
         let hitType = null;
@@ -423441,9 +423735,7 @@ function createStompSystem(giant2, city, fx2, opts = {}) {
           result = { foot: "left", pos: { x: fl.x, z: fl.z }, d, type: hitType, yaw };
           cooldownL = STOMP_CD;
           triggerDestruction(fl, city, fx2);
-          if (fx2) {
-            fx2.onStomp(fl, hitType, d);
-          }
+          if (fx2) fx2.onStomp(fl, hitType, d);
           if (onImpactCallback) onImpactCallback(result);
         }
       }
@@ -423453,7 +423745,7 @@ function createStompSystem(giant2, city, fx2, opts = {}) {
       const dv = prevY - nowY;
       const isLanding = prevY > LAND_Y && nowY <= LAND_Y && dv > 0.01;
       const vel = dv / dt;
-      if (isLanding && vel > LAND_V * 0.1) {
+      if (isLanding && vel > 2 * 0.1) {
         const local = worldToFoot(yaw, { x: fr.x, z: fr.z }, playerPos);
         const d = Math.hypot(local.u / FOOT_A, local.v / FOOT_B);
         let hitType = null;
@@ -423487,53 +423779,23 @@ function createStompSystem(giant2, city, fx2, opts = {}) {
     lastFootR = fr ? { ...fr } : null;
     return result;
   }
-  function triggerDestruction(footPos, city2, fx3) {
-    if (!city2 || !city2.blocks) return;
-    const bx = Math.floor(footPos.x / WORLD.BLOCK_PITCH + CFG.CITY_GRID / 2);
-    const bz = Math.floor(footPos.z / WORLD.BLOCK_PITCH + CFG.CITY_GRID / 2);
-    const key = `${bx}_${bz}`;
-    if (crushedBlocks.has(key)) return;
-    const blocksToCrush = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        const nbx = bx + dx, nbz = bz + dz;
-        if (nbx < 0 || nbx >= CFG.CITY_GRID || nbz < 0 || nbz >= CFG.CITY_GRID) continue;
-        const dist = Math.hypot(dx, dz);
-        const delay = dist * 100 + Math.random() * 100;
-        blocksToCrush.push({ bx: nbx, bz: nbz, delay });
-      }
-    }
-    blocksToCrush.sort((a, b) => a.delay - b.delay);
-    for (const b of blocksToCrush) {
-      const k = `${b.bx}_${b.bz}`;
-      if (crushedBlocks.has(k)) continue;
-      crushedBlocks.add(k);
-      setTimeout(() => {
-        if (fx3) fx3.crushBlock(b.bx, b.bz);
-      }, b.delay);
-    }
-    if (fx3) {
-      fx3.onDestruction(footPos, blocksToCrush);
-    }
-  }
   function onImpact(cb) {
     onImpactCallback = cb;
   }
   function reset() {
     crushedBlocks.clear();
+    preCleared.clear();
     lastFootL = null;
     lastFootR = null;
     cooldownL = 0;
     cooldownR = 0;
+    predictTimer = 0;
+    stuckTimer = 0;
+    stuckHistory.length = 0;
   }
-  return {
-    update,
-    onImpact,
-    reset,
-    get crushedCount() {
-      return crushedBlocks.size;
-    }
-  };
+  return { update, onImpact, reset, get crushedCount() {
+    return crushedBlocks.size;
+  }, preClearAt };
 }
 
 // src/game/fx.js
@@ -423836,16 +424098,16 @@ function createHud(rootEl, opts = {}) {
   }
   rootEl.innerHTML = `
     <style>
-      #gameUI { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: -apple-system, sans-serif; }
-      #gameUI .topBar { position: absolute; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: rgba(22,25,31,0.85); border-bottom: 1px solid #555; pointer-events: auto; }
+      #gameUI { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: -apple-system, sans-serif; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+      #gameUI .topBar { position: absolute; top: env(safe-area-inset-top, 0); left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: rgba(22,25,31,0.85); border-bottom: 1px solid #555; pointer-events: auto; transition: opacity 0.8s; }
       #gameUI .topBar button { background: #2a2f3f; color: #fff; border: 1px solid #555; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-right: 4px; }
       #gameUI .topBar .stats { color: #c9d1e0; font-size: 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      #gameUI .centerAnnounce { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: opacity 0.15s; text-align: center; max-width: 80%; }
+      #gameUI .centerAnnounce { position: absolute; top: calc(80px + env(safe-area-inset-top, 0)); left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: opacity 0.15s; text-align: center; max-width: 80%; }
       #gameUI .centerAnnounce.show { opacity: 1; }
-      #gameUI .joystick { position: absolute; left: 24px; bottom: 24px; width: 120px; height: 120px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }
+      #gameUI .joystick { position: absolute; left: calc(24px + env(safe-area-inset-left, 0)); bottom: calc(24px + env(safe-area-inset-bottom, 0)); width: 120px; height: 120px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }
       #gameUI .joystick .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; background: rgba(255,255,255,0.35); border-radius: 50%; }
       #gameUI .lookZone { position: absolute; right: 0; top: 0; bottom: 0; width: 52%; pointer-events: auto; touch-action: none; }
-      #gameUI .actionBtns { position: absolute; right: 12px; bottom: 24px; display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
+      #gameUI .actionBtns { position: absolute; right: calc(12px + env(safe-area-inset-right, 0)); bottom: calc(24px + env(safe-area-inset-bottom, 0)); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
       #gameUI .actionBtns button { width: 64px; height: 64px; border-radius: 12px; border: 1px solid #555; background: rgba(40,46,58,0.88); color: #fff; font-size: 12px; font-weight: 700; }
       #gameUI .resultPanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: rgba(22,25,31,0.95); border: 1px solid #555; padding: 20px 24px; color: #fff; text-align: center; min-width: 280px; display: none; pointer-events: auto; }
       #gameUI .resultPanel.show { display: block; }
@@ -423854,11 +424116,12 @@ function createHud(rootEl, opts = {}) {
       #gameUI .resultPanel button { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
       #gameUI .edgeArrow { position: absolute; width: 24px; height: 24px; background: rgba(255,80,80,0.9); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
       #gameUI .edgeArrow.show { opacity: 1; }
-      #gameUI .debugInfo { position: absolute; top: 50px; right: 8px; color: #8ab4f8; font-size: 10px; background: rgba(0,0,0,0.5); padding: 4px 6px; pointer-events: none; max-width: 55%; text-align: right; }
-      #gameUI .inputPanel { position: absolute; top: 52px; left: 8px; background: rgba(22,25,31,0.88); border: 1px solid #555; padding: 8px 10px; color: #c9d1e0; font-size: 11px; pointer-events: auto; min-width: 180px; }
+      #gameUI .debugInfo { position: absolute; top: calc(50px + env(safe-area-inset-top, 0)); right: calc(8px + env(safe-area-inset-right, 0)); color: #8ab4f8; font-size: 10px; background: rgba(0,0,0,0.5); padding: 4px 6px; pointer-events: none; max-width: 55%; text-align: right; }
+      #gameUI .inputPanel { position: absolute; top: calc(52px + env(safe-area-inset-top, 0)); left: calc(8px + env(safe-area-inset-left, 0)); background: rgba(22,25,31,0.88); border: 1px solid #555; padding: 8px 10px; color: #c9d1e0; font-size: 11px; pointer-events: auto; min-width: 180px; }
       #gameUI .inputPanel label { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; gap: 8px; }
       #gameUI .inputPanel input[type=range] { width: 90px; }
       #gameUI .inputPanel .row { display: flex; gap: 6px; margin-top: 6px; }
+      #gameUI .hiddenUI { opacity: 0 !important; pointer-events: none !important; }
     </style>
     <div class="topBar">
       <div>
@@ -423910,6 +424173,7 @@ function createHud(rootEl, opts = {}) {
   const resultScoresEl = rootEl.querySelector("#gameResultScores");
   const edgeArrowEl = rootEl.querySelector("#gameEdgeArrow");
   const debugInfoEl = rootEl.querySelector("#gameDebugInfo");
+  const topBarEl = rootEl.querySelector(".topBar");
   const exitBtn = rootEl.querySelector("#gameExitBtn");
   const modeBtn = rootEl.querySelector("#gameModeBtn");
   const debugBtn = rootEl.querySelector("#gameDebugBtn");
@@ -423919,6 +424183,21 @@ function createHud(rootEl, opts = {}) {
   const rollBtn = rootEl.querySelector("#gameRollBtn");
   const jumpBtn = rootEl.querySelector("#gameJumpBtn");
   const restartBtn = rootEl.querySelector("#gameRestartBtn");
+  let lastInteraction = performance.now();
+  let fadeTimer = null;
+  function resetFadeTimer() {
+    lastInteraction = performance.now();
+    if (topBarEl) topBarEl.style.opacity = "1";
+    if (fadeTimer) clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => {
+      if (topBarEl) topBarEl.style.transition = "opacity 0.8s";
+      if (topBarEl) topBarEl.style.opacity = "0.25";
+    }, 3e3);
+  }
+  ["touchstart", "mousemove", "click"].forEach((ev) => {
+    rootEl.addEventListener(ev, resetFadeTimer, { passive: true });
+  });
+  resetFadeTimer();
   const inputPanel = rootEl.querySelector("#gameInputPanel");
   const sensH = rootEl.querySelector("#sensH");
   const sensV = rootEl.querySelector("#sensV");
@@ -424114,28 +424393,100 @@ function createHud(rootEl, opts = {}) {
   lookZoneEl.addEventListener("touchcancel", endLook);
   lookZoneEl.addEventListener("pointercancel", endLook);
   let mouseDown = false;
+  let pointerLocked = false;
   lookZoneEl.addEventListener("mousedown", (e) => {
     mouseDown = true;
     lastX = e.clientX;
     lastY = e.clientY;
+    try {
+      if (lookZoneEl.requestPointerLock) lookZoneEl.requestPointerLock();
+    } catch (err) {
+    }
+  });
+  document.addEventListener("pointerlockchange", () => {
+    pointerLocked = document.pointerLockElement === lookZoneEl;
   });
   window.addEventListener("mousemove", (e) => {
-    if (!mouseDown) return;
-    let dx = e.clientX - lastX, dy = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
+    let dx, dy;
+    if (pointerLocked) {
+      dx = e.movementX || 0;
+      dy = e.movementY || 0;
+    } else {
+      if (!mouseDown) return;
+      dx = e.clientX - lastX;
+      dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+    }
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+    const dpiScale = window.devicePixelRatio || 1;
+    dx *= dpiScale;
+    dy *= dpiScale;
     input.lookNormX = Math.max(-1, Math.min(1, dx / 100));
     input.lookNormY = Math.max(-1, Math.min(1, dy / 100));
     input.hasLook = true;
     input.clearLook = false;
+    resetFadeTimer();
   });
   window.addEventListener("mouseup", () => {
     if (mouseDown) {
       mouseDown = false;
-      input.hasLook = false;
-      input.clearLook = true;
+      if (!pointerLocked) {
+        input.hasLook = false;
+        input.clearLook = true;
+      }
     }
+  });
+  const keys = {};
+  window.addEventListener("keydown", (e) => {
+    keys[e.code] = true;
+    let mx = 0, mz = 0;
+    if (keys["KeyW"]) mz += 1;
+    if (keys["KeyS"]) mz -= 1;
+    if (keys["KeyA"]) mx -= 1;
+    if (keys["KeyD"]) mx += 1;
+    const mag = Math.hypot(mx, mz) || 1;
+    input.moveX = mx / mag;
+    input.moveZ = mz / mag;
+    if (keys["ShiftLeft"] || keys["ShiftRight"]) input.run = true;
+    if (keys["ControlLeft"] || keys["ControlRight"]) input.crouch = true;
+    if (e.code === "Space") {
+      input.jump = true;
+      setTimeout(() => input.jump = false, 100);
+    }
+    if (e.code === "KeyQ") {
+      input.roll = true;
+      setTimeout(() => input.roll = false, 100);
+    }
+    if (e.code === "Escape") {
+      if (pointerLocked) {
+        try {
+          document.exitPointerLock();
+        } catch (err) {
+        }
+      } else {
+        if (opts.onExit) opts.onExit();
+      }
+    }
+    resetFadeTimer();
+  });
+  window.addEventListener("keyup", (e) => {
+    keys[e.code] = false;
+    let mx = 0, mz = 0;
+    if (keys["KeyW"]) mz += 1;
+    if (keys["KeyS"]) mz -= 1;
+    if (keys["KeyA"]) mx -= 1;
+    if (keys["KeyD"]) mx += 1;
+    const mag = Math.hypot(mx, mz) || 1;
+    if (mx === 0 && mz === 0) {
+      input.moveX = 0;
+      input.moveZ = 0;
+    } else {
+      input.moveX = mx / mag;
+      input.moveZ = mz / mag;
+    }
+    if (!keys["ShiftLeft"] && !keys["ShiftRight"]) input.run = false;
+    if (!keys["ControlLeft"] && !keys["ControlRight"]) input.crouch = false;
   });
   crouchBtn.addEventListener("touchstart", (e) => {
     input.crouch = true;
@@ -424396,14 +424747,19 @@ async function enterCityMode() {
     savedState.groundEnabled = mmd.ground.isEnabled();
     mmd.ground.setEnabled(false);
   }
-  const uiIds = ["topBar", "pbar", "exportBtn", "status", "mposWrap", "settingsPanel", "panel", "exportPanel", "aspectBar"];
+  const uiIds = ["topBar", "pbar", "exportBtn", "status", "mposWrap", "settingsPanel", "panel", "exportPanel", "aspectBar", "playBar", "progressBar", "modelPos"];
   for (const id of uiIds) {
     const el = document.getElementById(id);
     if (el) {
       savedState.uiVisibility[id] = el.style.display;
-      if (id !== "topBar") el.style.display = "none";
+      el.style.display = "none";
     }
   }
+  const extraHide = document.querySelectorAll("#topBar, .top-bar, #playerBar, #exportBar");
+  extraHide.forEach((el) => {
+    if (el.id && !savedState.uiVisibility[el.id]) savedState.uiVisibility[el.id] = el.style.display;
+    el.style.display = "none";
+  });
   const modelRoot = mmd.getModelRoot ? mmd.getModelRoot() : null;
   if (modelRoot) {
     savedState.modelRootPos = modelRoot.position.clone();
@@ -424575,6 +424931,10 @@ async function enterCityMode() {
       if (fx) fx.triggerSlowmo();
     }
   });
+  let physicsAccum = 0;
+  let mmdCityTime = 0;
+  const FIXED_DT_MOBILE = 1 / 60;
+  const FIXED_DT_PC = 1 / 120;
   if (!gameObserver) {
     gameObserver = () => {
       if (!cityActive) return;
@@ -424585,17 +424945,31 @@ async function enterCityMode() {
         gameLoopLast = now;
         dt = Math.min(0.05, dt);
         dt *= slowmoFactor;
-        const pState = player ? player.update(dt, hud ? hud.input : null, giant ? giant.rootPos : null, giant ? giant.feet() : null) : null;
-        const gState = giant ? giant.update(dt, pState ? pState.pos : null, { lineOfSightBlocked }) : null;
-        if (stomp && pState) {
-          stomp.update(dt, pState.pos, pState);
+        const isPC = typeof window !== "undefined" && window.innerWidth > 1024 || false;
+        const fixedDt = isPC ? FIXED_DT_PC : FIXED_DT_MOBILE;
+        physicsAccum += dt;
+        let steps = 0;
+        const maxSteps = 3;
+        try {
+          const qSub = Q && Q.substeps ? Q.substeps : isPC ? 6 : 4;
+          if (mmd.setPhysics) mmd.setPhysics({ substeps: qSub });
+        } catch (e) {
         }
-        if (fx && pState) {
-          fx.update(dt, pState.camera, pState.pos, giant);
+        while (physicsAccum >= fixedDt && steps < maxSteps) {
+          if (player) player.update(fixedDt, hud ? hud.input : null, giant ? giant.rootPos : null, giant ? giant.feet() : null);
+          if (giant) {
+            const pPos = player ? player.pos : null;
+            giant.update(fixedDt, pPos, {});
+          }
+          physicsAccum -= fixedDt;
+          steps++;
         }
-        if (pState && cityData) {
-          updateCityCulling(pState.pos, cityData);
-        }
+        if (physicsAccum > fixedDt) physicsAccum = 0;
+        const pState = player ? player.update(0, hud ? hud.input : null, giant ? giant.rootPos : null, giant ? giant.feet() : null) : null;
+        const gState = giant ? giant.update(dt, pState ? pState.pos : null, {}) : null;
+        if (stomp && pState) stomp.update(dt, pState.pos, pState);
+        if (fx && pState) fx.update(dt, pState.camera, pState.pos, giant);
+        if (pState && cityData) updateCityCulling(pState.pos, cityData);
         if (hud) {
           if (hud.mode === "survival") {
             survivalTime += dt;
@@ -424603,30 +424977,20 @@ async function enterCityMode() {
           }
           if (gState) {
             hud.updateDirectionIndicator(pState ? pState.pos : null, gState.rootPos, gState.isSeeingPlayer);
-            const info = `FPS ${engine.getFps().toFixed(0)} | tri ${cityData ? cityData.stats.triCount : 0} | AABB ${getBoxes().length} | state ${gState.state} | feet Y ${gState.feet.left ? gState.feet.left.y.toFixed(2) : "?"}/${gState.feet.right ? gState.feet.right.y.toFixed(2) : "?"}`;
+            const info = `FPS ${engine.getFps().toFixed(0)} | Q ${isPC ? "PC" : "M"} tri ${cityData ? cityData.stats.triCount : 0} | AABB ${getBoxes().length} | state ${gState.state} gaze ${gState.gazeState} | head ${gState.headPitchDeg.toFixed(1)}\xB0 eye ${gState.eyeYawDeg.toFixed(1)}\xB0 | feet Y ${gState.feet.left ? gState.feet.left.y.toFixed(2) : "?"}/${gState.feet.right ? gState.feet.right.y.toFixed(2) : "?"}`;
             hud.setDebugInfo(info);
             hud.setFps(engine.getFps());
             try {
-              const obsCount = scene.onBeforeRenderObservable.observers.length;
-              hud.setObservers(obsCount);
+              hud.setObservers(scene.onBeforeRenderObservable.observers.length);
             } catch (e) {
             }
+            hud.setYawRate(pState ? pState.yawRateDeg : 0);
           }
         }
-        if (mmd.mmdRuntime && slowmoFactor !== 1) {
-          if (typeof mmd._absT0 === "number") {
-            const nowSec = performance.now() / 1e3;
-            const realElapsed = nowSec - mmd._absT0;
-            const desiredElapsed = realElapsed * slowmoFactor;
-            if (!mmd._cityTime) mmd._cityTime = mmd.mmdRuntime._currentFrameTime || 0;
-            mmd._cityTime += dt * 30 * slowmoFactor;
-            mmd.mmdRuntime._currentFrameTime = mmd._cityTime % (mmd.mmdRuntime._animationFrameTimeDuration || 1e4);
-          }
-        } else if (mmd.mmdRuntime) {
-          if (mmd._cityTime) {
-            mmd._absT0 = performance.now() / 1e3 - mmd.mmdRuntime._currentFrameTime / 30;
-            mmd._cityTime = null;
-          }
+        if (mmd.mmdRuntime) {
+          mmdCityTime += dt * 30 * slowmoFactor;
+          const dur = mmd.mmdRuntime._animationFrameTimeDuration || 1e4;
+          mmd.mmdRuntime._currentFrameTime = mmdCityTime % dur;
         }
       } catch (e) {
         console.error("[city] game loop error", e);

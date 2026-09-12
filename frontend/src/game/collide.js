@@ -73,6 +73,43 @@ export function getBoxes() {
   return boxes;
 }
 
+// 移除半径内的盒子（用于楼被踩时让路，不做刚体）
+export function removeBoxesInRadius(x, z, radius, kinds = null) {
+  const r2 = radius * radius;
+  let removed = 0;
+  for (let i = boxes.length - 1; i >= 0; i--) {
+    const b = boxes[i];
+    if (kinds && !kinds.includes(b.kind)) continue;
+    if (b.kind === "ground" || b.kind === "wall") continue;
+    const cx = (b.minX + b.maxX) / 2;
+    const cz = (b.minZ + b.maxZ) / 2;
+    const dx = cx - x, dz = cz - z;
+    if (dx * dx + dz * dz <= r2) {
+      boxes.splice(i, 1);
+      removed++;
+    }
+  }
+  // 重建网格（简单粗暴全量重建，避免索引错乱）
+  if (removed > 0) {
+    grid.clear();
+    for (let idx = 0; idx < boxes.length; idx++) {
+      const b = boxes[idx];
+      const minIX = Math.floor(b.minX / CELL);
+      const maxIX = Math.floor(b.maxX / CELL);
+      const minIZ = Math.floor(b.minZ / CELL);
+      const maxIZ = Math.floor(b.maxZ / CELL);
+      for (let ix = minIX; ix <= maxIX; ix++) {
+        for (let iz = minIZ; iz <= maxIZ; iz++) {
+          const k = keyFor(ix, iz);
+          if (!grid.has(k)) grid.set(k, []);
+          grid.get(k).push(idx);
+        }
+      }
+    }
+  }
+  return removed;
+}
+
 // ---- 几何 ----
 export function overlap(a, b) {
   return (

@@ -2,8 +2,9 @@
 import "./bjs.js"; // 必须先挂 window.BABYLON，否则 city/fx/hud 创建 mesh 会静默跳过
 import { CFG, WORLD } from "./config.js";
 import { PH, u } from "./scale.js";
-import { clearWorld, getBoxes, lineOfSightBlocked as collideLOS } from "./collide.js";
+import { clearWorld, getBoxes } from "./collide.js";
 import { buildCity, updateCityCulling, setupSkyAndLights } from "./city.js";
+import { Q } from "./quality.js";
 import { createPlayer } from "./player.js";
 import { createGiant } from "./giant.js";
 import { loadDefaultMotions, createMotionController } from "./motions.js";
@@ -121,15 +122,21 @@ async function enterCityMode() {
     mmd.ground.setEnabled(false);
   }
 
-  // UI 可见性
-  const uiIds = ["topBar", "pbar", "exportBtn", "status", "mposWrap", "settingsPanel", "panel", "exportPanel", "aspectBar"];
+  // UI 可见性 — 沉浸全屏隐藏顶部/播放/进度/导出/画幅/状态 (§10)
+  const uiIds = ["topBar", "pbar", "exportBtn", "status", "mposWrap", "settingsPanel", "panel", "exportPanel", "aspectBar", "playBar", "progressBar", "modelPos"];
   for (const id of uiIds) {
     const el = document.getElementById(id);
     if (el) {
       savedState.uiVisibility[id] = el.style.display;
-      if (id !== "topBar") el.style.display = "none";
+      el.style.display = "none";
     }
   }
+  // 额外隐藏：所有非游戏 UI
+  const extraHide = document.querySelectorAll("#topBar, .top-bar, #playerBar, #exportBar");
+  extraHide.forEach(el => {
+    if (el.id && !savedState.uiVisibility[el.id]) savedState.uiVisibility[el.id] = el.style.display;
+    el.style.display = "none";
+  });
 
   // 模型位置
   const modelRoot = mmd.getModelRoot ? mmd.getModelRoot() : null;
@@ -325,7 +332,11 @@ async function enterCityMode() {
     }
   });
 
-  // 10. 注册单例 observer
+  // 10. 注册单例 observer — 布料固定步长累积器 1/60(PC 1/120)最多3步，substeps手机4 PC6-8
+  let physicsAccum = 0;
+  let mmdCityTime = 0;
+  const FIXED_DT_MOBILE = 1 / 60;
+  const FIXED_DT_PC = 1 / 120;
   if (!gameObserver) {
     gameObserver = () => {
       if (!cityActive) return;
@@ -337,28 +348,35 @@ async function enterCityMode() {
         dt = Math.min(0.05, dt);
         dt *= slowmoFactor;
 
-        // 玩家
-        const pState = player ? player.update(dt, hud ? hud.input : null, giant ? giant.rootPos : null, giant ? giant.feet() : null) : null;
+        const isPC = (typeof window !== "undefined" && window.innerWidth > 1024) || false;
+        const fixedDt = isPC ? FIXED_DT_PC : FIXED_DT_MOBILE;
+        physicsAccum += dt;
+        let steps = 0;
+        const maxSteps = 3;
+        try {
+          const qSub = (Q && Q.substeps) ? Q.substeps : (isPC ? 6 : 4);
+          if (mmd.setPhysics) mmd.setPhysics({ substeps: qSub });
+        } catch (e) {}
 
-        // 巨人
-        const gState = giant ? giant.update(dt, pState ? pState.pos : null, { lineOfSightBlocked: collideLOS }) : null;
-
-        // 踩踏
-        if (stomp && pState) {
-          stomp.update(dt, pState.pos, pState);
+        // 固定步长推进物理
+        while (physicsAccum >= fixedDt && steps < maxSteps) {
+          if (player) player.update(fixedDt, hud ? hud.input : null, giant ? giant.rootPos : null, giant ? giant.feet() : null);
+          if (giant) {
+            const pPos = player ? player.pos : null;
+            giant.update(fixedDt, pPos, {});
+          }
+          physicsAccum -= fixedDt;
+          steps++;
         }
+        if (physicsAccum > fixedDt) physicsAccum = 0; // 剩余丢弃
 
-        // FX
-        if (fx && pState) {
-          fx.update(dt, pState.camera, pState.pos, giant);
-        }
+        const pState = player ? player.update(0, hud ? hud.input : null, giant ? giant.rootPos : null, giant ? giant.feet() : null) : null;
+        const gState = giant ? giant.update(dt, pState ? pState.pos : null, {}) : null;
 
-        // 城市剔除
-        if (pState && cityData) {
-          updateCityCulling(pState.pos, cityData);
-        }
+        if (stomp && pState) stomp.update(dt, pState.pos, pState);
+        if (fx && pState) fx.update(dt, pState.camera, pState.pos, giant);
+        if (pState && cityData) updateCityCulling(pState.pos, cityData);
 
-        // HUD
         if (hud) {
           if (hud.mode === "survival") {
             survivalTime += dt;
@@ -366,39 +384,18 @@ async function enterCityMode() {
           }
           if (gState) {
             hud.updateDirectionIndicator(pState ? pState.pos : null, gState.rootPos, gState.isSeeingPlayer);
-            const info = `FPS ${engine.getFps().toFixed(0)} | tri ${(cityData ? cityData.stats.triCount : 0)} | AABB ${getBoxes().length} | state ${gState.state} | feet Y ${(gState.feet.left ? gState.feet.left.y.toFixed(2) : "?")}/${(gState.feet.right ? gState.feet.right.y.toFixed(2) : "?")}`;
+            const info = `FPS ${engine.getFps().toFixed(0)} | Q ${isPC ? "PC" : "M"} tri ${(cityData ? cityData.stats.triCount : 0)} | AABB ${getBoxes().length} | state ${gState.state} gaze ${gState.gazeState} | head ${gState.headPitchDeg.toFixed(1)}° eye ${gState.eyeYawDeg.toFixed(1)}° | feet Y ${(gState.feet.left ? gState.feet.left.y.toFixed(2) : "?")}/${(gState.feet.right ? gState.feet.right.y.toFixed(2) : "?")}`;
             hud.setDebugInfo(info);
             hud.setFps(engine.getFps());
-            try {
-              const obsCount = scene.onBeforeRenderObservable.observers.length;
-              hud.setObservers(obsCount);
-            } catch (e) {}
+            try { hud.setObservers(scene.onBeforeRenderObservable.observers.length); } catch (e) {}
+            hud.setYawRate(pState ? pState.yawRateDeg : 0);
           }
         }
 
-        // MMD 慢动作：覆盖 _currentFrameTime
-        if (mmd.mmdRuntime && slowmoFactor !== 1) {
-          // 简单实现：让 _absT0 漂移
-          if (typeof mmd._absT0 === "number") {
-            const nowSec = performance.now() / 1000;
-            // 调整 _absT0 使得 target = (now - _absT0)*30*slowmo
-            // 我们每帧微调 _absT0
-            const realElapsed = nowSec - mmd._absT0;
-            const desiredElapsed = realElapsed * slowmoFactor;
-            // 新的 _absT0 = now - desiredElapsed
-            // 但这样会累积误差，我们改为直接设置 _currentFrameTime
-            // 直接设置 currentFrameTime 为累加
-            if (!mmd._cityTime) mmd._cityTime = mmd.mmdRuntime._currentFrameTime || 0;
-            mmd._cityTime += dt * 30 * slowmoFactor;
-            mmd.mmdRuntime._currentFrameTime = mmd._cityTime % (mmd.mmdRuntime._animationFrameTimeDuration || 10000);
-          }
-        } else if (mmd.mmdRuntime) {
-          // 恢复
-          if (mmd._cityTime) {
-            // 同步回绝对时间
-            mmd._absT0 = performance.now() / 1000 - mmd.mmdRuntime._currentFrameTime / 30;
-            mmd._cityTime = null;
-          }
+        if (mmd.mmdRuntime) {
+          mmdCityTime += dt * 30 * slowmoFactor;
+          const dur = mmd.mmdRuntime._animationFrameTimeDuration || 10000;
+          mmd.mmdRuntime._currentFrameTime = mmdCityTime % dur;
         }
 
       } catch (e) {

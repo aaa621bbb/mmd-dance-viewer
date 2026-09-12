@@ -11,16 +11,16 @@ export function createHud(rootEl, opts = {}) {
 
   rootEl.innerHTML = `
     <style>
-      #gameUI { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: -apple-system, sans-serif; }
-      #gameUI .topBar { position: absolute; top: 0; left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: rgba(22,25,31,0.85); border-bottom: 1px solid #555; pointer-events: auto; }
+      #gameUI { position: fixed; inset: 0; z-index: 100; pointer-events: none; font-family: -apple-system, sans-serif; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+      #gameUI .topBar { position: absolute; top: env(safe-area-inset-top, 0); left: 0; right: 0; height: 48px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; background: rgba(22,25,31,0.85); border-bottom: 1px solid #555; pointer-events: auto; transition: opacity 0.8s; }
       #gameUI .topBar button { background: #2a2f3f; color: #fff; border: 1px solid #555; padding: 6px 10px; font-size: 12px; cursor: pointer; margin-right: 4px; }
       #gameUI .topBar .stats { color: #c9d1e0; font-size: 11px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      #gameUI .centerAnnounce { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: opacity 0.15s; text-align: center; max-width: 80%; }
+      #gameUI .centerAnnounce { position: absolute; top: calc(80px + env(safe-area-inset-top, 0)); left: 50%; transform: translateX(-50%); color: #fff; font-size: 20px; font-weight: 700; text-shadow: 0 2px 8px rgba(0,0,0,0.8); pointer-events: none; opacity: 0; transition: opacity 0.15s; text-align: center; max-width: 80%; }
       #gameUI .centerAnnounce.show { opacity: 1; }
-      #gameUI .joystick { position: absolute; left: 24px; bottom: 24px; width: 120px; height: 120px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }
+      #gameUI .joystick { position: absolute; left: calc(24px + env(safe-area-inset-left, 0)); bottom: calc(24px + env(safe-area-inset-bottom, 0)); width: 120px; height: 120px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 50%; pointer-events: auto; touch-action: none; }
       #gameUI .joystick .knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; background: rgba(255,255,255,0.35); border-radius: 50%; }
       #gameUI .lookZone { position: absolute; right: 0; top: 0; bottom: 0; width: 52%; pointer-events: auto; touch-action: none; }
-      #gameUI .actionBtns { position: absolute; right: 12px; bottom: 24px; display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
+      #gameUI .actionBtns { position: absolute; right: calc(12px + env(safe-area-inset-right, 0)); bottom: calc(24px + env(safe-area-inset-bottom, 0)); display: flex; flex-direction: column; gap: 8px; pointer-events: auto; }
       #gameUI .actionBtns button { width: 64px; height: 64px; border-radius: 12px; border: 1px solid #555; background: rgba(40,46,58,0.88); color: #fff; font-size: 12px; font-weight: 700; }
       #gameUI .resultPanel { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); background: rgba(22,25,31,0.95); border: 1px solid #555; padding: 20px 24px; color: #fff; text-align: center; min-width: 280px; display: none; pointer-events: auto; }
       #gameUI .resultPanel.show { display: block; }
@@ -29,11 +29,12 @@ export function createHud(rootEl, opts = {}) {
       #gameUI .resultPanel button { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; border: none; padding: 10px 20px; font-size: 14px; font-weight: 700; cursor: pointer; }
       #gameUI .edgeArrow { position: absolute; width: 24px; height: 24px; background: rgba(255,80,80,0.9); color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
       #gameUI .edgeArrow.show { opacity: 1; }
-      #gameUI .debugInfo { position: absolute; top: 50px; right: 8px; color: #8ab4f8; font-size: 10px; background: rgba(0,0,0,0.5); padding: 4px 6px; pointer-events: none; max-width: 55%; text-align: right; }
-      #gameUI .inputPanel { position: absolute; top: 52px; left: 8px; background: rgba(22,25,31,0.88); border: 1px solid #555; padding: 8px 10px; color: #c9d1e0; font-size: 11px; pointer-events: auto; min-width: 180px; }
+      #gameUI .debugInfo { position: absolute; top: calc(50px + env(safe-area-inset-top, 0)); right: calc(8px + env(safe-area-inset-right, 0)); color: #8ab4f8; font-size: 10px; background: rgba(0,0,0,0.5); padding: 4px 6px; pointer-events: none; max-width: 55%; text-align: right; }
+      #gameUI .inputPanel { position: absolute; top: calc(52px + env(safe-area-inset-top, 0)); left: calc(8px + env(safe-area-inset-left, 0)); background: rgba(22,25,31,0.88); border: 1px solid #555; padding: 8px 10px; color: #c9d1e0; font-size: 11px; pointer-events: auto; min-width: 180px; }
       #gameUI .inputPanel label { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; gap: 8px; }
       #gameUI .inputPanel input[type=range] { width: 90px; }
       #gameUI .inputPanel .row { display: flex; gap: 6px; margin-top: 6px; }
+      #gameUI .hiddenUI { opacity: 0 !important; pointer-events: none !important; }
     </style>
     <div class="topBar">
       <div>
@@ -87,6 +88,7 @@ export function createHud(rootEl, opts = {}) {
   const edgeArrowEl = rootEl.querySelector("#gameEdgeArrow");
   const debugInfoEl = rootEl.querySelector("#gameDebugInfo");
 
+  const topBarEl = rootEl.querySelector(".topBar");
   const exitBtn = rootEl.querySelector("#gameExitBtn");
   const modeBtn = rootEl.querySelector("#gameModeBtn");
   const debugBtn = rootEl.querySelector("#gameDebugBtn");
@@ -96,6 +98,23 @@ export function createHud(rootEl, opts = {}) {
   const rollBtn = rootEl.querySelector("#gameRollBtn");
   const jumpBtn = rootEl.querySelector("#gameJumpBtn");
   const restartBtn = rootEl.querySelector("#gameRestartBtn");
+
+  // 沉浸式：左上退出 3s 无操作淡到 25%
+  let lastInteraction = performance.now();
+  let fadeTimer = null;
+  function resetFadeTimer() {
+    lastInteraction = performance.now();
+    if (topBarEl) topBarEl.style.opacity = "1";
+    if (fadeTimer) clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => {
+      if (topBarEl) topBarEl.style.transition = "opacity 0.8s";
+      if (topBarEl) topBarEl.style.opacity = "0.25";
+    }, 3000);
+  }
+  ["touchstart","mousemove","click"].forEach(ev => {
+    rootEl.addEventListener(ev, resetFadeTimer, { passive: true });
+  });
+  resetFadeTimer();
 
   // 输入面板
   const inputPanel = rootEl.querySelector("#gameInputPanel");
@@ -261,25 +280,82 @@ export function createHud(rootEl, opts = {}) {
   // pointercancel 也要
   lookZoneEl.addEventListener("pointercancel", endLook);
 
-  // PC 鼠标：pointer lock 模拟
+  // PC 鼠标 + 键盘：WASD/鼠标锁定/Shift跑/Space跳/Ctrl蹲/Q翻滚/Esc菜单
   let mouseDown = false;
-  lookZoneEl.addEventListener("mousedown", (e) => { mouseDown = true; lastX = e.clientX; lastY = e.clientY; });
+  let pointerLocked = false;
+  lookZoneEl.addEventListener("mousedown", (e) => {
+    mouseDown = true; lastX = e.clientX; lastY = e.clientY;
+    // 尝试 pointer lock
+    try {
+      if (lookZoneEl.requestPointerLock) lookZoneEl.requestPointerLock();
+    } catch (err) {}
+  });
+  document.addEventListener("pointerlockchange", () => {
+    pointerLocked = document.pointerLockElement === lookZoneEl;
+  });
   window.addEventListener("mousemove", (e) => {
-    if (!mouseDown) return;
-    let dx = e.clientX - lastX, dy = e.clientY - lastY;
-    lastX = e.clientX; lastY = e.clientY;
+    let dx, dy;
+    if (pointerLocked) {
+      dx = e.movementX || 0; dy = e.movementY || 0;
+    } else {
+      if (!mouseDown) return;
+      dx = e.clientX - lastX; dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+    }
     if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+    // DPI 缩放
+    const dpiScale = window.devicePixelRatio || 1;
+    dx *= dpiScale; dy *= dpiScale;
     input.lookNormX = Math.max(-1, Math.min(1, dx / 100));
     input.lookNormY = Math.max(-1, Math.min(1, dy / 100));
     input.hasLook = true;
     input.clearLook = false;
+    resetFadeTimer();
   });
   window.addEventListener("mouseup", () => {
     if (mouseDown) {
       mouseDown = false;
-      input.hasLook = false;
-      input.clearLook = true;
+      if (!pointerLocked) {
+        input.hasLook = false;
+        input.clearLook = true;
+      }
     }
+  });
+  // 键盘
+  const keys = {};
+  window.addEventListener("keydown", (e) => {
+    keys[e.code] = true;
+    // 移动
+    let mx = 0, mz = 0;
+    if (keys["KeyW"]) mz += 1;
+    if (keys["KeyS"]) mz -= 1;
+    if (keys["KeyA"]) mx -= 1;
+    if (keys["KeyD"]) mx += 1;
+    const mag = Math.hypot(mx, mz) || 1;
+    input.moveX = mx / mag;
+    input.moveZ = mz / mag;
+    if (keys["ShiftLeft"] || keys["ShiftRight"]) input.run = true;
+    if (keys["ControlLeft"] || keys["ControlRight"]) input.crouch = true;
+    if (e.code === "Space") { input.jump = true; setTimeout(() => input.jump = false, 100); }
+    if (e.code === "KeyQ") { input.roll = true; setTimeout(() => input.roll = false, 100); }
+    if (e.code === "Escape") {
+      if (pointerLocked) { try { document.exitPointerLock(); } catch (err) {} }
+      else { if (opts.onExit) opts.onExit(); }
+    }
+    resetFadeTimer();
+  });
+  window.addEventListener("keyup", (e) => {
+    keys[e.code] = false;
+    let mx = 0, mz = 0;
+    if (keys["KeyW"]) mz += 1;
+    if (keys["KeyS"]) mz -= 1;
+    if (keys["KeyA"]) mx -= 1;
+    if (keys["KeyD"]) mx += 1;
+    const mag = Math.hypot(mx, mz) || 1;
+    if (mx === 0 && mz === 0) { input.moveX = 0; input.moveZ = 0; }
+    else { input.moveX = mx / mag; input.moveZ = mz / mag; }
+    if (!keys["ShiftLeft"] && !keys["ShiftRight"]) input.run = false;
+    if (!keys["ControlLeft"] && !keys["ControlRight"]) input.crouch = false;
   });
 
   // 按钮
